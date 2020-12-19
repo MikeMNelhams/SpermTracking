@@ -28,8 +28,8 @@ with open(r"C:\Users\Shane\Desktop\Year 3\Mathematical and Data Modelling\Phase 
 
 #For each sperm detected in a given frame, there is a dictionary containing
 #the following info :
-#- a box containing sperm head ("bbox"), 
-#- the position of the center of the sperm head ("center"),
+#- a box containing sperm head ("bbox")--> list of 4 values representing points of a rectangle, 
+#- the position of the center of the sperm head ("center") --> list of x and y coordinate,
 # the class("class"),
 #(which i expect is whether the detected object is a sperm or not because it looks like it is always set to 1)
 #- whether it was interpolated (Set false for all) ("interpolated"),
