@@ -22,7 +22,7 @@ cap = cv2.VideoCapture(r"C:\Users\Shane\Desktop\Year 3\Mathematical and Data Mod
 
 success,img = cap.read()
 
-##Formatting and scaling succesive sperm head positions to display
+##Formatting and scaling successive sperm head positions to display
 def drawCenters(img,i):
     for i in range(0,len(data["centroids"])): # number of frames
         for j in range(0,len(data["centroids"][i])): #number of sperms in frame
