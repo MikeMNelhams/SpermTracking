@@ -12,18 +12,19 @@ from sklearn.cluster import DBSCAN
 # For working with excel
 import xlsxwriter
 
+
 # ~~~~~ Functions Library (I would make this a seperate file, but cba coz we're using github and nobody links gits)
-def export_to_excel(data, filename):
+def export_to_excel(data_input, filename):
     # Export the data to an xlsx spreadsheet.
     with xlsxwriter.Workbook(filename + ".xlsx") as workbook:
         worksheet = workbook.add_worksheet()
 
     x_values, y_values, frame_values = [], [], []
 
-    for i in range(0, len(data["centroids"])):  # number of frames
-        for j in range(0, len(data["centroids"][i])):  # number of sperms in frame
-            x_values.append(data["centroids"][i][j]["center"][0])
-            y_values.append(data["centroids"][i][j]["center"][1])
+    for i in range(0, len(data_input["centroids"])):  # number of frames
+        for j in range(0, len(data_input["centroids"][i])):  # number of sperms in frame
+            x_values.append(data_input["centroids"][i][j]["center"][0])
+            y_values.append(data_input["centroids"][i][j]["center"][1])
             frame_values.append(i)
 
     for i in range(len(x_values)):
@@ -34,16 +35,16 @@ def export_to_excel(data, filename):
     return 0
 
 
-def calc_clusters(data, algorithm="kmeans",n_clusters=10,plot=True):
+def calc_clusters(data_input, algorithm="kmeans", n_clusters=10, plot=True):
     # Find all positions of center of sperm heads for data video
     # Plots the graph by default.
     # Returns the clusters
     x_values, y_values, frame_values = [], [], []
 
-    for i in range(0, len(data["centroids"])):  # number of frames
-        for j in range(0, len(data["centroids"][i])):  # number of sperms in frame
-            x_values.append(data["centroids"][i][j]["center"][0])
-            y_values.append(data["centroids"][i][j]["center"][1])
+    for i in range(0, len(data_input["centroids"])):  # number of frames
+        for j in range(0, len(data_input["centroids"][i])):  # number of sperms in frame
+            x_values.append(data_input["centroids"][i][j]["center"][0])
+            y_values.append(data_input["centroids"][i][j]["center"][1])
             frame_values.append(i)
 
     X = []
@@ -108,13 +109,18 @@ def calc_clusters(data, algorithm="kmeans",n_clusters=10,plot=True):
 
     return clusters_asarr
 
+
 # ~~~~~ Main ~~~~~
 # We could pull the data all from a github using pygithub and PAT keys/SSH keys
 # However, I am unsure if their data is copyrighted
 # In which case we would need a license to upload their data to github.
 # Obviously change your path to wherever you want to save the cover0_0
-with open(r"C:\Users\Mike Nelhams\Documents\Mike's Stuff 2\MDM3-B\mojo_sperm_tracking_data_bristol\mojo_sperm_tracking_data_bristol\tp49\cover0_0_YOLO_NO_TRACKING_output\centroids_with_meta.json", "r") as read_file:
+print('Importing video Data...')
+with open(r"C:\Users\Mike Nelhams\Documents\Mike's Stuff "
+          r"2\MDM3-B\mojo_sperm_tracking_data_bristol\mojo_sperm_tracking_data_bristol\tp49"
+          r"\cover0_0_YOLO_NO_TRACKING_output\centroids_with_meta.json", "r") as read_file:
     data = json.load(read_file)
+print('Data import completed.')
 
 # 'dbscan' runs dbscan based clustering and same with 'kmeans' for kmeans
 calc_clusters(data, algorithm=input("'kmeans' or 'dbscan'? "))
