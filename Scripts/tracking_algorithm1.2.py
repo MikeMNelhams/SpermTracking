@@ -13,6 +13,10 @@ from sklearn.cluster import DBSCAN
 # For working with excel
 import xlsxwriter
 
+# For profiling the code
+import cProfile
+import re
+
 
 # ~~~~~ Functions Library (I would make this a seperate file, but cba coz we're using github and nobody links gits)
 def num_frames(data_input):
@@ -41,7 +45,7 @@ def export_to_excel(data_input, filename):
 
 
 def calc_clusters(data_input, algorithm="kmeans", n_clusters=10, plot=True):
-    valid_algorithms = ["kmeans", "dbscan", "mikes"]
+    valid_algorithms = ["kmeans", "dbscan", "mikes", "none"]
     algorithm_t = "dbscan"
     if algorithm in valid_algorithms:
         algorithm_t = algorithm
@@ -89,6 +93,30 @@ def calc_clusters(data_input, algorithm="kmeans", n_clusters=10, plot=True):
     elif algorithm_t.lower() == 'mikes':
         pred_y, n_max = track_sperms(data, distances, distances_f)
         # I couldn't come up with a way to make it reuse this code, plotting and predicting is done all in-function
+        return 0
+
+    elif algorithm_t.lower() == 'none':
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
+        c4 = 0
+        x2 = []
+        y2 = []
+        f2 = []
+
+        for i, frame in enumerate(data_input["centroids"]):
+            for sperm in frame:
+                x2.append(sperm["center"][0])
+                y2.append(sperm["center"][1])
+                f2.append(i)
+                c4 += 1
+        ax.scatter(x2, y2, f2, s=1, color='black')
+        print(c4)
+        ax.set_xlabel('X Axes')
+        ax.set_ylabel('Y Axes')
+        ax.set_zlabel('Frame number')
+        plt.title("Sperm Centroids every frame")
+        plt.show()
+        # End the function
         return 0
 
     # Generate the ID and a random colours for each ID
@@ -213,7 +241,7 @@ def correct_for_missing(smallest_indices, missing_indices):
 
 
 # Returns pred_y, n_max (number of bins required)
-def track_sperms(data_input, distance_input=None, distance_f_input=None, power=2, root=True, frame_diff=1):
+def track_sperms(data_input, distance_input=None, distance_f_input=None, power=2, root=True, frame_diff=1, plot=True):
     # Generate the distances if not done already
     dist = distance_input
     if distance_input is None:
@@ -342,29 +370,38 @@ def track_sperms(data_input, distance_input=None, distance_f_input=None, power=2
     clusters = [[i, []] for i in range(n_max)]
 
     # Append all of the clustering predictions to the data structure
+    c3 = 0
     for i, frame in enumerate(pred_y):
         for j, prediction in enumerate(frame):
             clusters[prediction][1].append([data_input["centroids"][i][j]["center"][0],
                                             data_input["centroids"][i][j]["center"][1],
                                             i])
+            c3 += 1
 
     # List comprehensions are over 100% more efficient
-    clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n)]
+    clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_max)]
 
-    fig = plt.figure()
-    ax = plt.axes(projection="3d")
-    i = 0
+    if plot:
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
+        for i, cluster in enumerate(clusters_asarr):
+            color_map = colors[i]
+            ax.scatter(cluster[:, 0], cluster[:, 1], cluster[:, 2], color=color_map, s=1)
 
-    for i, cluster in enumerate(clusters_asarr):
-        color_map = colors[i]
-        ax.scatter(cluster[:, 0], cluster[:, 1], cluster[:, 2], color=color_map, s=1)
-
-    ax.set_xlabel('X Axes')
-    ax.set_ylabel('Y Axes')
-    ax.set_zlabel('Frame number')
-    plt.title("Sperm Centroids every frame")
-    plt.show()
-
+        ax.set_xlabel('X Axes')
+        ax.set_ylabel('Y Axes')
+        ax.set_zlabel('Frame number')
+        plt.title("Sperm Centroids every frame")
+        plt.show()
+    c = 0
+    for row in pred_y:
+        for pred in row:
+            c += 1
+    c2 = 0
+    for row in data_input["centroids"]:
+        for sperm in row:
+            c2 += 1
+    print('c: ', c, ' c2: ', c2, ' c3: ', c3)
     return pred_y, n_max
 
 
@@ -394,8 +431,8 @@ distances_f = calc_distances(data, 2, True, frame_diff=-1)
 
 # Plot a line between each sperm, using primitive tracking as the shortest distance sperm in the previous frame.
 # Add each sperm coordinate across all the frames to a separate list
-# sperm_tracks = track_sperms(data, distances, distances_f)
+track_sperms(data, distances, distances_f, plot=True)
 
 # 'dbscan' runs dbscan based clustering and same with 'kmeans' for kmeans. 'mikes' with mike's physics based approach
-calc_clusters(data, algorithm=input("'kmeans', 'dbscan', or 'mikes' ? "))
+# calc_clusters(data, algorithm=input("'kmeans', 'dbscan', 'mikes', 'none' ? "))
 # export_to_excel(data, "MDM3_MOJO2")  # Export data to a spreadsheet
