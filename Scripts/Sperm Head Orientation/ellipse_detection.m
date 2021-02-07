@@ -93,7 +93,7 @@ function bestFits = ellipseDetection(img, params)
     if ~isfield(params,'minAspectRatio');    params.minAspectRatio = 0.1; end
     if ~isfield(params,'randomize');        params.randomize = 2; end
     % - others
-    if ~isfield(params,'numBest');            params.numBest = 3; end
+    if ~isfield(params,'numBest');            params.numBest = 1; end
     if ~isfield(params,'uniformWeights');   params.uniformWeights = true; end
     if ~isfield(params,'smoothStddev');        params.smoothStddev = 1; end
 
