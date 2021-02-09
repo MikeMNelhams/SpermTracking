@@ -86,11 +86,11 @@ function bestFits = ellipseDetection(img, params)
     % default values
     if nargin==1; params=[]; end
     % - parameters to contrain the search
-    if ~isfield(params,'minMajorAxis');     params.minMajorAxis = 10; end
-    if ~isfield(params,'maxMajorAxis');     params.maxMajorAxis = 200; end
+    if ~isfield(params,'minMajorAxis');     params.minMajorAxis = 30; end
+    if ~isfield(params,'maxMajorAxis');     params.maxMajorAxis = 90; end
     if ~isfield(params,'rotation');            params.rotation = 0; end
     if ~isfield(params,'rotationSpan');        params.rotationSpan = 0; end
-    if ~isfield(params,'minAspectRatio');    params.minAspectRatio = 0.1; end
+    if ~isfield(params,'minAspectRatio');    params.minAspectRatio = 0.2; end
     if ~isfield(params,'randomize');        params.randomize = 2; end
     % - others
     if ~isfield(params,'numBest');            params.numBest = 1; end
@@ -106,7 +106,7 @@ function bestFits = ellipseDetection(img, params)
     Y = single(Y); X = single(X);
     N = length(Y);
     
-    fprintf('Possible major axes: %d * %d = %d\n', N, N, N*N);
+    %fprintf('Possible major axes: %d * %d = %d\n', N, N, N*N);
 
     % compute pairwise distances between points (memory intensive!) and filter
     % TODO: do this block-wise, just appending the filtered results (I,J)
@@ -115,7 +115,7 @@ function bestFits = ellipseDetection(img, params)
     idx = I<J;
     I = uint32(I(idx)); J = uint32(J(idx));
     
-    fprintf('..after distance constraint: %d\n', length(I));
+    %fprintf('..after distance constraint: %d\n', length(I));
     
     % compute pairwise angles and filter
     if params.rotationSpan>0
@@ -130,7 +130,7 @@ function bestFits = ellipseDetection(img, params)
         I = I(idx); J = J(idx);
         fprintf('..after angular constraint: %d\n', length(I));
     else
-        fprintf('..angular constraint not used\n');
+        %fprintf('..angular constraint not used\n');
     end
     
     npairs = length(I);
@@ -140,7 +140,7 @@ function bestFits = ellipseDetection(img, params)
         perm = randperm(npairs);
         pairSubset = perm(1:min(npairs,N*params.randomize));
         clear perm;
-        fprintf('..after randomization: %d\n', length(pairSubset));
+        %fprintf('..after randomization: %d\n', length(pairSubset));
     else
         pairSubset = 1:npairs;
     end
