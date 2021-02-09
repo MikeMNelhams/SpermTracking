@@ -20,9 +20,9 @@ By running sperm_orientation.m in Matlab, a 2 column excel file will be created 
 LIMITS : 
 The sperm head orientation can give wrong intuition regarding the path of a dead sperm as these will "go where the flow pushes them" rather than in the direction of the head
 
-TO-DO 
+TO-DO : 6:53, 09/02
 Convert the excel file to pd dataframe in python to plot results and see their accuracy -- > Problem with multi valued index conversion
 
 Determine direction of vector (as opposed to non-directed vector) -- > exploit consistent center position near bounding box borders (head near borders) 
 
-
+Let me know if you find indexing problems, its possible there are some due to matlab starting from 1 rather than 0
