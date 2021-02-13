@@ -21,7 +21,7 @@ LIMITS :
 The sperm head orientation can give wrong intuition regarding the path of a dead sperm as these will "go where the flow pushes them" rather than in the direction of the head
 
 TO-DO : 6:53, 09/02
-Convert the excel file to pd dataframe in python to plot results and see their accuracy -- > Problem with multi valued index conversion
+Convert the excel file to pd dataframe in python to plot results and see their accuracy -- > Problem with multi valued index conversion -- done --> excel_to_python.py
 
 Determine direction of vector (as opposed to non-directed vector) -- > exploit consistent center position near bounding box borders (head near borders) 
 
