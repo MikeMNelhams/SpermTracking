@@ -17,7 +17,7 @@ end
 %From folder with each frame of a video as a file, load frames
 folder = "C:\Users\Shane\Desktop\Year 3\Mathematical and Data Modelling\Phase B\MDM3_B\OrientationJ_Data\1st source\Video 0\Frames\"; 
 index = 1;
-orientations = zeros(3258,2);
+orientations = zeros(3258,3);
 
 %Iterate over the number of frames for the number of sperm in each frame
 %and fit ellipse over head to determine angle
@@ -25,16 +25,19 @@ for frame_counter = drange(1:301)
     baseFileName = append('frame',int2str(frame_counter-1),'.jpg');
     fullFileName = fullfile(folder, baseFileName);
     rgbImage_raw = imread(fullFileName);
+    nb = 0;
     for i = drange(index:nb_sperm(frame_counter))
         rgbImage = imcrop(rgbImage_raw,inf0(i,2:5));
-        E = edge(rgb2gray(rgbImage),'canny',0.4);
+        E = edge(rgb2gray(rgbImage),'canny',0.5);
         % note that the edge (or gradient) image is used
         bestFits = ellipseDetection(E, params);
         angle = bestFits(:,5);
-        orientations(i,2) = angle;
+        orientations(i,3) = angle;
         orientations(i,1) = frame_counter-1;
+        orientations(i,2) = nb;
+        nb = nb+1;
     index =  nb_sperm(frame_counter)+1;
-    fprintf('%d\n',index);
+    %fprintf('%d\n',index);
     
     %Displaying results, don't recommended using these if iterating over
     %lots of frames
