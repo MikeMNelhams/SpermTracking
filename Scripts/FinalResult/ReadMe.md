@@ -1,9 +1,7 @@
-Table of Contents
--------------
+Table of contents
+=================
 <!--ts-->
-    [Table of Contents](#Table-of-Contents)
-    [Latest Verison](#Latest-Version)
-       * [Test files](##Test-files)
+   * [Table of contents](#table-of-contents)
 <!--te-->
 
 Latest version
