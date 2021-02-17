@@ -27,29 +27,45 @@ Currently accepted are: ```["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm"
 
 ### tp 
 2 digit string. 
+
 For the provided data ```['49', '57']```
+
 Default `'49'`
 ### Cover 
 2 digit string. 
+
 For the provided data ```['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19']```
+
 Default `'57'`
 ### Plot 
 Bool. 
+
 Plot = True will plot the graph, Plot = False will not plot the graph 
+
 Default `False`
 ### Verbose
 Bool. 
+
 Verbose = True will print all information to console. Verbose = False will only print some information if any. 
+
 Default `False`
 ### Plot type 
 String. 
+
 Currently accepted are: ```['2d', '3d', 'bar_graph']```
+
 ### Heatmap 
 Bool. 
+
 heatmap = True will change the colour scheme to using a heatmap where colour represents the U value accuracy. 
+
 heatmap = False will use default colour scheme where every cluster is a different randomised cluster from palette rgb(0.05 to 0.7, 0.05 to 0.7, 0.05 to 0.7) .
 
 ## Examples:
 ```python 
 run_main(algorithm='kmeans', cover='00', plot=True, plot_type='2d')
 ```
+
+Output: 
+
+<blockquote class="imgur-embed-pub" lang="en" data-id="a/kTyLyWR" data-context="false" ><a href="//imgur.com/a/kTyLyWR"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
