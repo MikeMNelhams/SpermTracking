@@ -2,6 +2,7 @@ Table of contents
 =================
 <!--ts-->
    * [Table of contents](#table-of-contents)
+   * [Latest Version](#Latest-version)
 <!--te-->
 
 Latest version
