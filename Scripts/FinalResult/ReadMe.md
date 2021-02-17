@@ -1,6 +1,7 @@
 ##### Table of Contents
 -------------
 <!--ts-->
+    [Table of Contents](#####Table-of-Contents)
     [Latest Verison](#Latest-Version)
        * [Test files](##Test-files)
 <!--te-->
