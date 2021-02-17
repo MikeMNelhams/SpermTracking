@@ -7,6 +7,7 @@ Table of Contents
 <!--te-->
 
 Latest version
+============
 The latest version for the tracking algorithm is ```tracking_algorithm39```.
 
 ##Test files
