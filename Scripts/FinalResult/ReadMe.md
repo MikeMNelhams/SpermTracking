@@ -2,6 +2,9 @@
 -------------
 [Headers](#headers)
 
+<a name="headers"/>
+## Headers
+
 # Latest version
 The latest version for the tracking algorithm is ```tracking_algorithm39```.
 
