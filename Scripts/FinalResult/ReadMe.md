@@ -1,8 +1,8 @@
-#####Table of Contents
+##### Table of Contents
 -------------
 <!--ts-->
-    [Latest Verison](#Latest Version)
-     * [Test files](##Test files)
+    [Latest Verison](# Latest-Version)
+     * [Test files](## Test-files)
 <!--te-->
 
 #Latest version
