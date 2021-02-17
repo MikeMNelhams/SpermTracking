@@ -3,13 +3,14 @@ Table of contents
 <!--ts-->
    * [Table of contents](#table-of-contents)
    * [Latest Version](#Latest-version)
+      * [Test files](##Test-files)
 <!--te-->
 
 Latest version
 ============
 The latest version for the tracking algorithm is ```tracking_algorithm39```.
 
-##Test files
+## Test files
 There are test files for verififying the functions work for all the data. There is a plot and no-plot to verify plotting works.
 
 ## Motility Calculations
