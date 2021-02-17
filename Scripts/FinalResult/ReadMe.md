@@ -62,10 +62,18 @@ heatmap = True will change the colour scheme to using a heatmap where colour rep
 heatmap = False will use default colour scheme where every cluster is a different randomised cluster from palette rgb(0.05 to 0.7, 0.05 to 0.7, 0.05 to 0.7) .
 
 ## Examples:
+### 1
 ```python 
 run_main(algorithm='kmeans', cover='00', plot=True, plot_type='2d')
 ```
 
 Output: 
-
 ![](kmeans3x2d00.png)
+
+### 2
+```python 
+run_main(algorithm='mike', cover='04', plot=true, plot_type='3d', heatmap=True
+```
+
+Output:
+![](heatmap_example.png)
