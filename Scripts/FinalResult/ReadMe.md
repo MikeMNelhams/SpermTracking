@@ -17,39 +17,39 @@ The file:
 # Using the package to cluster data
 Clustering the Data: 
 
-To run an clustering algorithm `ALGO` on test patient (tp) `tp` and cover `cover`, the function ```python run_main(algorithm=ALGO, tp=tp, cover=cover, plot=True, plot_type='2d')``` will calculate the clusters using the specified algorithm, return the cluster ID predictions and plot a 2D graph of the results. 
+To run an clustering algorithm `ALGO` on test patient (tp) `tp` and cover `cover`, the function ```run_main(algorithm=ALGO, tp=tp, cover=cover, plot=True, plot_type='2d')``` will calculate the clusters using the specified algorithm, return the cluster ID predictions and plot a 2D graph of the results. 
 
 ## Parameters 
 
 ### Algorithm 
 Must be a string. 
-Currently accepted are: ```python ["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm", "htdbscan", "richard-dbscan"]``` 
+Currently accepted are: ```["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm", "htdbscan", "richard-dbscan"]``` 
 
 ### tp 
 2 digit string. 
-For the provided data ```python ['49', '57']```
-
+For the provided data ```['49', '57']```
+Default `'49'`
 ### Cover 
 2 digit string. 
-For the provided data ```python ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19']```
-
+For the provided data ```['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19']```
+Default `'57'`
 ### Plot 
 Bool. 
 Plot = True will plot the graph, Plot = False will not plot the graph 
-
+Default `False`
 ### Verbose
 Bool. 
 Verbose = True will print all information to console. Verbose = False will only print some information if any. 
-
+Default `False`
 ### Plot type 
 String. 
-Currently accepted are: ```python ['2d', '3d', 'bar_graph']```
-
+Currently accepted are: ```['2d', '3d', 'bar_graph']```
 ### Heatmap 
 Bool. 
 heatmap = True will change the colour scheme to using a heatmap where colour represents the U value accuracy. 
-heatmap = False will use default colour scheme where every cluster is a different cluster.
-
+heatmap = False will use default colour scheme where every cluster is a different randomised cluster from palette rgb(0.05 to 0.7, 0.05 to 0.7, 0.05 to 0.7) .
 
 ## Examples:
-
+```python 
+run_main(algorithm='kmeans', cover='00', plot=True, plot_type='2d')
+```
