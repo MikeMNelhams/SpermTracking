@@ -66,8 +66,7 @@ heatmap = False will use default colour scheme where every cluster is a differen
 ```python 
 run_main(algorithm='kmeans', cover='00', plot=True, plot_type='2d')
 ```
-
-Output: 
+ 
 ![](kmeans3x2d00.png)
 
 ### 2
@@ -75,5 +74,4 @@ Output:
 run_main(algorithm='mike', cover='04', plot=true, plot_type='3d', heatmap=True
 ```
 
-Output:
 ![](heatmap_example.png)
