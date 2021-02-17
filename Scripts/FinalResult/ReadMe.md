@@ -12,7 +12,7 @@ There are test files for verififying the functions work for all the data. There 
 
 ## Motility Calculations
 The file:
-```MotilityCalc.py``` produces the RMS distances travelled using 'Mike' based clustering. The algorithm doesn't have a name, but I would suggest calling it K-patch. 
+```MotilityCalc.py``` produces the RMS distances travelled using 'Mike' based clustering. The algorithm doesn't have a mathematical name, but I would suggest calling it K-patch. 
 
 # Using the package to cluster data
 Clustering the Data: 
