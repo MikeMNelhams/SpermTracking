@@ -25,7 +25,7 @@ To run an clustering algorithm `ALGO` on test patient (tp) `tp` and cover `cover
 Must be a string. 
 Currently accepted are: ```["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm", "htdbscan", "richard-dbscan"]``` 
 
-### tp 
+### TP 
 2 digit string. 
 
 For the provided data ```['49', '57']```
