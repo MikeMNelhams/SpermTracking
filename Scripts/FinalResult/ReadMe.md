@@ -1,8 +1,9 @@
 ##### Table of Contents
 -------------
-[Headers](#headers)
-
-<a name="headers"/>
+<!--ts-->
+    [Latest Verison](# Latest Version)
+     * [Test files](## Test files)
+<!--te-->
 
 # Latest version
 The latest version for the tracking algorithm is ```tracking_algorithm39```.
