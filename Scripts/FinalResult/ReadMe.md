@@ -1,4 +1,4 @@
-#Table of Contents
+Table of Contents
 -------------
 <!--ts-->
     [Table of Contents](#Table-of-Contents)
@@ -6,7 +6,7 @@
        * [Test files](##Test-files)
 <!--te-->
 
-#Latest version
+Latest version
 The latest version for the tracking algorithm is ```tracking_algorithm39```.
 
 ##Test files
