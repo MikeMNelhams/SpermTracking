@@ -68,4 +68,4 @@ run_main(algorithm='kmeans', cover='00', plot=True, plot_type='2d')
 
 Output: 
 
-![]()
+![](Scripts/FinalResult/kmeans3x2d00.png)
