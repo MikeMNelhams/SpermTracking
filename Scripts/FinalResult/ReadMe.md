@@ -68,4 +68,4 @@ run_main(algorithm='kmeans', cover='00', plot=True, plot_type='2d')
 
 Output: 
 
-<blockquote class="imgur-embed-pub" lang="en" data-id="a/kTyLyWR" data-context="false" ><a href="//imgur.com/a/kTyLyWR"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
+![]()
