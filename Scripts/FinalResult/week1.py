@@ -264,10 +264,12 @@ def optimalPolynomial(sperm_number, current_cluster):
             result = False
             pass
 
+
     if len(BIC_x_list) <= 1:
         polynomial_order_x = 0
     else:
         polynomial_order_x = polynimialNumber(BIC_x_list)
+
 
     if len(BIC_y_list) <= 1:
         polynomial_order_y = 0
@@ -281,8 +283,8 @@ def optimalPolynomial(sperm_number, current_cluster):
     p1_x = np.polyfit(z, x, polynomial_order_x)
     p1_y = np.polyfit(z, y, polynomial_order_y)
 
-    new_minimum_z = min(z) - 10
-    new_maximum_z = max(z) + 10
+    new_minimum_z = min(z) - 50
+    new_maximum_z = max(z) + 50
     if new_minimum_z <= 0:
         new_minimum_z = 0
     if new_maximum_z >= 300:
@@ -292,8 +294,9 @@ def optimalPolynomial(sperm_number, current_cluster):
     poly_x = np.poly1d(p1_x)
     poly_y = np.poly1d(p1_y)
 
-    z_t = list(set(z_new) - set(z))
 
+    z_t = list(set(z_new) - set(z))
+    print(z_t)
     x_t = poly_x(z_t)
     y_t = poly_y(z_t)
     return (x_t, y_t, z_t)
@@ -409,7 +412,7 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
             old_lists_cluster = lists_of_lists_cluster
             token_sperms = []
             for speram_number in range(1, len(new_lists_cluster)):
-                if len(new_lists_cluster[speram_number][1]) <= 300 and len(new_lists_cluster[speram_number][1]) >= 25:
+                if len(new_lists_cluster[speram_number][1]) <= 300 and len(new_lists_cluster[speram_number][1]) >= 10:
                     count2 += 1
                     x_t, y_t, z_t = optimalPolynomial(speram_number, new_lists_cluster)
                     for t in range(0, len(z_t)):
@@ -429,6 +432,9 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
 
             print("X", X)
             X = np.array(X)
+            print("X[:, 2]", X[:, 2])
+            X[:, 2] = [round(x) for x in X[:, 2]]
+            print("INT? X[:, 2]", X[:, 2])
             print("X", X.shape[0])
             distances = calc_distances(State3(X), 2, True, frame_diff=1)
             distances_f = calc_distances(State3(X), 2, True, frame_diff=-1)
@@ -443,7 +449,8 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
             x_values = list(X[:, 0])
             y_values = list(X[:, 1])
             frame_values = list(X[:, 2])
-            print(frame_values)
+
+            print("frame_values",  frame_values)
 
             # fig, (ax2, ax1) = plt.subplots(1,2)
             # ax1.scatter(X[:, 0], X[:, 1], s=0.5)
