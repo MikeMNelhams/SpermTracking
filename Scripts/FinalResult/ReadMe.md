@@ -1,10 +1,11 @@
 Latest version
 ============
 The latest version for the tracking algorithm is ```tracking_algorithm48.py```.
+Running ```python run_main(algorithm, cover='cover', tp='tp')``` will write a .json file of the exact format of video detections for a given TP and cover.
 
 Test files
 -----
-There are test files for verififying the functions work for all the data. There is a plot and no-plot to verify plotting works.
+There are test files for verififying the functions work for all the data. There is a plot version to verify plotting works.
 
 ## Motility Calculations
 The file:
