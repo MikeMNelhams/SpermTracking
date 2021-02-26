@@ -1,6 +1,6 @@
 Latest version
 ============
-The latest version for the tracking algorithm is ```tracking_algorithm43.py```.
+The latest version for the tracking algorithm is ```tracking_algorithm48.py```.
 
 Test files
 -----
