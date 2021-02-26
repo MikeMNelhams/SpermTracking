@@ -8,7 +8,17 @@ There are test files for verififying the functions work for all the data. There 
 
 ## Motility Calculations
 The file:
-```MotilityCalc.py``` produces the RMS distances travelled using 'Mike' based clustering. The algorithm doesn't have a mathematical name, but I would suggest calling it K-patch. 
+```MotilityCalc.py``` produces the RMS distances travelled using 'Mike' based clustering. The algorithm doesn't have a mathematical name, but I would suggest calling it closest frame.
+
+## Tracking Evaluations
+The file:
+```EvaluatingTracking.py``` has 4 functions for producing performance measures for any clustering algorithms for all of the data. 
+The functions all take ```['algorithm1', 'algorithm2', ...]``` lists as their only input.  
+
+```eval_U()``` Produces the U means and U standard deviations.
+```eval_convex_hull()``` Produces the convex hull densities.
+```eval_runtime()``` Uses date_time to accurately calculate the runtime to the nearest 10ms.
+```plot_all_04()``` Is used to plot all the graphs for cover 04. Can easily be changed to suit all covers and TPs.
 
 # Using the package to cluster data
 Clustering the Data: 
