@@ -893,23 +893,6 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
         colors[0], colors[-1] = colors[-1], colors[0]
         clusters[0][1], clusters[-1][1] = clusters[-1][1], clusters[0][-1]
 
-    if heatmap:
-        # https://www.google.com/url?sa=i&url=https%3A%2F%2Fmatplotlib.org%2F3.1.0%2Ftutorials%2Fcolors%2Fcolormaps
-        # .html&psig=AOvVaw0reomRw7Ry3-j0zu54NIbz&ust=1613262335685000&
-        # source=images&cd=vfe&ved=0CAIQjRxqFwoTCKiFpdfM5e4CFQAAAAAdAAAAABAO
-        # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
-        if verbose:
-            print([len(clusters[i][1]) for i in range(n_clusters)])
-        n_frames = data_State.frame_num
-        limits = [0.45, 0.6]
-        # More black colours are assigned to the less complete clusters
-        heat = cm.get_cmap('RdGy', n_clusters)
-        colors = [heat(_clamp((n_frames - len(clusters[i][1])) / n_frames, 0, 1))
-                  if not (n_frames - limits[0] * n_frames) >= len(clusters[i][1]) >= (n_frames - limits[1] * n_frames)
-                  else heat(limits[1])
-                  for i in range(n_clusters)]
-        del heat
-
     elif algorithm_t.lower() == 'ground-truth':
         # The last cluster is noise, thus should be black
         colors[-1] = 'black'
@@ -923,104 +906,7 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
                                       tp=data_State.tp, algorithm=algorithm_t, verbose=True)
 
     if plot:
-        if plot_type == '2d':
-            fig, (ax3, ax2, ax1) = plt.subplots(1, 3)
-
-            if n_clusters < 40:
-                # Small number
-                fig.set_size_inches(17, 5)  # Set the sizing
-            elif n_clusters < 80:
-                # Medium number
-                fig.set_size_inches(18, 5)  # Set the sizing
-            elif n_clusters < 150:
-                # Large number
-                fig.set_size_inches(19, 6)  # Set the sizing
-            else:
-                # Very Large number
-                fig.set_size_inches(19, 7)  # Set the sizing
-
-            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
-                                                                                                  data_State.tp,
-                                                                                                  data_State.cover),
-                         fontsize=18)
-
-            if algorithm_t.lower() == 'ground-truth':
-                fig.suptitle(
-                    'Ground truth (Minimal Noise) for sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
-                                                                                             data_State.tp,
-                                                                                             data_State.cover),
-                    fontsize=20)
-
-            for i, cluster in enumerate(clusters_asarr):
-                color_map = colors[i]
-                ax1.scatter(cluster[:, 0], cluster[:, 1], label=i, color=color_map, s=5)
-                ax2.scatter(cluster[:, 0], cluster[:, 2], label=i, color=color_map, s=5)
-                ax3.scatter(cluster[:, 1], cluster[:, 2], label=i, color=color_map, s=5)
-
-            ax3.set_xlabel('X Axis', fontsize=17)
-            ax3.set_ylabel('Frame Number', fontsize=16)
-            ax2.set_xlabel('Y Axis', fontsize=17)
-            ax2.set_ylabel('Frame Number', fontsize=16)
-            ax1.set_xlabel('X Axis', fontsize=17)
-            ax1.set_ylabel('Y Axis', fontsize=16)
-
-            # Put a legend to the right of the current axis
-            if n_clusters < 40:
-                # Small number
-                ax1.legend(ncol=2, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=5, handletextpad=0.6,
-                           labelspacing=0.5, columnspacing=0.6)
-
-            elif n_clusters < 60:
-                # Medium number
-                ax1.legend(ncol=3, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=4.5, handletextpad=0.6,
-                           labelspacing=0.5, columnspacing=0.5)
-            elif n_clusters < 80:
-                # Medium number
-                ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=4, handletextpad=0.6,
-                           labelspacing=0.5, columnspacing=0.5)
-            else:
-                # Large number
-                ax1.legend(ncol=5, loc='center left', bbox_to_anchor=(1.05, 0.5), markerscale=3.5, handletextpad=0.25,
-                           labelspacing=0.4, columnspacing=0.3)
-
-            ax3.title.set_text(' (A) ')
-            ax2.title.set_text(' (B) ')
-            ax1.title.set_text(' (C) ')
-
-            fig.tight_layout()  # Rescale everything so subplots always fit
-            fig.subplots_adjust(wspace=0.15)  # Trim the space a little between the subplots
-
-            plt.show()
-        elif plot_type == '3d':
-            # This will plot the graph in 3D
-            fig = plt.figure()
-            ax = plt.axes(projection="3d")
-            for i, cluster in enumerate(clusters_asarr):
-                color_map = colors[i]
-                ax.scatter(cluster[:, 0], cluster[:, 1], cluster[:, 2], color=color_map, s=1)
-
-            ax.set_xlabel('X Axes')
-            ax.set_ylabel('Y Axes')
-            ax.set_zlabel('Frame number')
-            plt.show()
-        elif plot_type == 'bar_graph':
-            fig, ax = plt.subplots()
-            fig.suptitle('{} clustering totals for tp {} cover {}'.format(algorithm_t.upper(), data_State.tp,
-                                                                          data_State.cover),
-                         fontsize=18)
-            ax.grid()  # Grids are very necessary for bar graphs
-            ax.set_axisbelow(True)  # So the grid goes behind the lines
-            totals = [cluster.shape[0] for cluster in clusters_asarr]
-            x_ticks = range(len(totals))
-
-            # Technically, this is deprecated, but try to stop me >:`)
-            # Colouring is more based on relative distance from the number of frames
-            colors = [plt.cm.viridis(abs(data_State.frame_num - n) / data_State.frame_num) for n in totals]
-            for x_val, y_val, color in zip(x_ticks, totals, colors):
-                ax.bar(x_val, y_val, label=data_State.cover, color=color)
-            ax.set_xlabel('Cluster Number')
-            ax.set_ylabel('Number of clustered centroids')
-            plt.show()
+        plot_clusters(clusters, data_State.frame_num, tp=data_State.tp, cover=data_State.cover, plot_type=plot_type)
 
     if plot_type == 'bar_graph':
         # Sneaky returning the U value where:
@@ -1648,14 +1534,25 @@ def evaluate_U_success(algorithm='dbscan', tps=('49', '57'), verbose=False, plot
     return float(mean), float(standard_deviation)
 
 
-def csv_to_json(path, tp, cover, rnd=4):
+def csv_to_json(path, tp, cover, algorithm='IDL'):
     """
     Convert the CSV to a nice JSON dataframe
     :param path: str (file needs to be in the same directory)
     :param tp: str (2-digit number)
     :param cover: str (2-digit number)
-    :param rnd: int (number to round all of the values to, except for ID obviously)
+    :param algorithm: str (name default 'IDL')
     :return:
+    """
+    clusters, pred_y = csv_to_clusters(path)
+    _write_clusters_space_to_json(pred_y, tp=tp, cover=cover, algorithm=algorithm, verbose=True)
+
+
+def csv_to_clusters(path):
+    """
+    THIS ONLY WORKS FOR CSV ordered:
+    x, y, frame, ID (prediction)
+    :param path: str (.csv)
+    :return: clusters
     """
     temp_path = Path(path)
     if not temp_path.is_file():
@@ -1675,10 +1572,8 @@ def csv_to_json(path, tp, cover, rnd=4):
         data[:, 3] = data[:, 3] - 1
 
         pred_y = data[:, 3]
-        print(pred_y)
         X = data[:, [0, 1, 2]]
         n_clusters = len(set(pred_y))
-        print(n_clusters)
 
         # Allocate the array
         clusters = [[i, []] for i in range(n_clusters)]
@@ -1687,7 +1582,134 @@ def csv_to_json(path, tp, cover, rnd=4):
         for i in range(len(pred_y)):
             clusters[int(pred_y[i])][1].append([X[i, 0], X[i, 1], X[i, 2]])
 
-        _write_clusters_space_to_json(pred_y, tp='49', cover='04', algorithm='IDL', verbose=True)
+        return clusters, pred_y
+
+
+def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', plot_type='2d', heatmap=False):
+    n_clusters = len(clusters)
+    algorithm_t = algorithm
+
+    # List comprehensions are over 100% more efficient
+    clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_clusters) if len(clusters[i][1]) != 0]
+
+    # (Generating DISTINCT n colours is unsolveable) Randomising uniformly, then reordering is a good compromise
+    # Making the graph coloured nicely AND matching the legend is NP hard. We will settle for just matching legend
+    colors = _generate_colors(n_clusters, 3)
+    colors = [_adjust_lightness(color, 0.5) for color in colors]  # Darken the GIST_rainbow colormap
+
+    if heatmap:
+        # https://www.google.com/url?sa=i&url=https%3A%2F%2Fmatplotlib.org%2F3.1.0%2Ftutorials%2Fcolors%2Fcolormaps
+        # .html&psig=AOvVaw0reomRw7Ry3-j0zu54NIbz&ust=1613262335685000&
+        # source=images&cd=vfe&ved=0CAIQjRxqFwoTCKiFpdfM5e4CFQAAAAAdAAAAABAO
+        # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+        limits = [0.45, 0.6]
+        # More black colours are assigned to the less complete clusters
+        heat = cm.get_cmap('RdGy', n_clusters)
+        colors = [heat(_clamp((frame_num - len(clusters[i][1])) / frame_num, 0, 1))
+                  if not (frame_num - limits[0] * frame_num) >= len(clusters[i][1]) >=
+                         (frame_num - limits[1] * frame_num)
+                  else heat(limits[1])
+                  for i in range(n_clusters)]
+        del heat
+
+    if plot_type == '2d':
+        fig, (ax3, ax2, ax1) = plt.subplots(1, 3)
+
+        if n_clusters < 40:
+            # Small number
+            fig.set_size_inches(17, 5)  # Set the sizing
+        elif n_clusters < 80:
+            # Medium number
+            fig.set_size_inches(18, 5)  # Set the sizing
+        elif n_clusters < 150:
+            # Large number
+            fig.set_size_inches(19, 6)  # Set the sizing
+        else:
+            # Very Large number
+            fig.set_size_inches(19, 7)  # Set the sizing
+
+        fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
+                                                                                              tp,
+                                                                                              cover),
+                     fontsize=18)
+
+        if algorithm_t.lower() == 'ground-truth':
+            fig.suptitle(
+                'Ground truth (Minimal Noise) for sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
+                                                                                             tp,
+                                                                                             cover),
+                fontsize=20)
+
+        for i, cluster in enumerate(clusters_asarr):
+            color_map = colors[i]
+            ax1.scatter(cluster[:, 0], cluster[:, 1], label=i, color=color_map, s=5)
+            ax2.scatter(cluster[:, 0], cluster[:, 2], label=i, color=color_map, s=5)
+            ax3.scatter(cluster[:, 1], cluster[:, 2], label=i, color=color_map, s=5)
+
+        ax3.set_xlabel('X Axis', fontsize=17)
+        ax3.set_ylabel('Frame Number', fontsize=16)
+        ax2.set_xlabel('Y Axis', fontsize=17)
+        ax2.set_ylabel('Frame Number', fontsize=16)
+        ax1.set_xlabel('X Axis', fontsize=17)
+        ax1.set_ylabel('Y Axis', fontsize=16)
+
+        # Put a legend to the right of the current axis
+        if n_clusters < 40:
+            # Small number
+            ax1.legend(ncol=2, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=5, handletextpad=0.6,
+                       labelspacing=0.5, columnspacing=0.6)
+
+        elif n_clusters < 60:
+            # Medium number
+            ax1.legend(ncol=3, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=4.5, handletextpad=0.6,
+                       labelspacing=0.5, columnspacing=0.5)
+        elif n_clusters < 80:
+            # Medium number
+            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=4, handletextpad=0.6,
+                       labelspacing=0.5, columnspacing=0.5)
+        else:
+            # Large number
+            ax1.legend(ncol=5, loc='center left', bbox_to_anchor=(1.05, 0.5), markerscale=3.5, handletextpad=0.25,
+                       labelspacing=0.4, columnspacing=0.3)
+
+        ax3.title.set_text(' (A) ')
+        ax2.title.set_text(' (B) ')
+        ax1.title.set_text(' (C) ')
+
+        fig.tight_layout()  # Rescale everything so subplots always fit
+        fig.subplots_adjust(wspace=0.15)  # Trim the space a little between the subplots
+
+        plt.show()
+    elif plot_type == '3d':
+        # This will plot the graph in 3D
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
+        for i, cluster in enumerate(clusters_asarr):
+            color_map = colors[i]
+            ax.scatter(cluster[:, 0], cluster[:, 1], cluster[:, 2], color=color_map, s=1)
+
+        ax.set_xlabel('X Axes')
+        ax.set_ylabel('Y Axes')
+        ax.set_zlabel('Frame number')
+        plt.show()
+    elif plot_type == 'bar_graph':
+        fig, ax = plt.subplots()
+        fig.suptitle('{} clustering totals for tp {} cover {}'.format(algorithm_t.upper(), tp,
+                                                                      cover),
+                     fontsize=18)
+        ax.grid()  # Grids are very necessary for bar graphs
+        ax.set_axisbelow(True)  # So the grid goes behind the lines
+        totals = [cluster.shape[0] for cluster in clusters_asarr]
+        x_ticks = range(len(totals))
+
+        # Technically, this is deprecated, but try to stop me >:`)
+        # Colouring is more based on relative distance from the number of frames
+        colors = [plt.cm.viridis(abs(frame_num - n) / frame_num) for n in totals]
+        for x_val, y_val, color in zip(x_ticks, totals, colors):
+            ax.bar(x_val, y_val, label=cover, color=color)
+        ax.set_xlabel('Cluster Number')
+        ax.set_ylabel('Number of clustered centroids')
+        plt.show()
 
 
 # ~~~~~ Main ~~~~~
@@ -1724,16 +1746,19 @@ min_points_for_cluster = 20  # Anything less will be treated as no clustering
 fps = 60  # The frames per second for the all the data is 60 per second
 mu = 0.13  # The pixel pitch in microns (As given by Mojo) Doesn't change any calculations
 
-# export_to_excel(data, "MDM3_MOJO2")  # Export data to a spreadsheet
-# produce_histogram(draw_type='bar', bin_count=100, cover='00', cutoff=-1, plot=True)
+if __name__ == '__main__':
+    # export_to_excel(data, "MDM3_MOJO2")  # Export data to a spreadsheet
+    # produce_histogram(draw_type='bar', bin_count=100, cover='00', cutoff=-1, plot=True)
 
-"""
-evaluate_U_success(algorithm='mike', tps=['49', '57'], plot=True, mean_line=True, verbose=True, bar_width=0.4,
-                   bar_gap_scale=1, max_u_value=35)
-"""
+    """
+    evaluate_U_success(algorithm='mike', tps=['49', '57'], plot=True, mean_line=True, verbose=True, bar_width=0.4,
+                       bar_gap_scale=1, max_u_value=35)
+    """
 
-# run_main(algorithm='hdbscan', cover='04', tp='49', plot_type='2d', plot=True, write_output=False)
-# run_main(algorithm='richard-BIC-hdbscan', cover='04', tp='49', plot_type='2d', plot=True, write_output=False)
+    # run_main(algorithm='hdbscan', cover='04', tp='49', plot_type='2d', plot=True, write_output=False)
+    # run_main(algorithm='richard-BIC-hdbscan', cover='04', tp='49', plot_type='2d', plot=True, write_output=False)
 
-# evaluate_U_success(algorithm='ground-truth', tps=['49'], verbose=True)
-csv_to_json('IDL_tracks_0_4.csv', '49', '04')
+    # evaluate_U_success(algorithm='ground-truth', tps=['49'], verbose=True)
+    # csv_to_json('IDL_tracks_0_4.csv', '49', '04')
+    run_main(algorithm='kmeans', cover='04', tp='49', plot=True, write_output=False)
+    pass
