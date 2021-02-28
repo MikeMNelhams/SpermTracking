@@ -118,7 +118,7 @@ def _linear_rescale(_x: list, _min: float, _max: float, rnd: int=2):
     return [round(a * element + b, rnd) for element in _x].copy()
 
 
-def _generate_colors(n, rnd: int=2):
+def _generate_colors(n, rnd: int = 2):
     rainbow = cm.get_cmap('gist_rainbow', n)
 
     colors = _linear_rescale(range(n), 0, 1, rnd=rnd)
@@ -145,6 +145,102 @@ def _flatten_lists(the_lists):
     for _list in the_lists:
         result += _list
     return result
+
+
+def _hough_transform3(data_input, origin=(0, 0)):
+    # Only use this ONLY for sequenced data
+
+    X = data_input
+    if origin != (0, 0):
+        X = [row - origin for row in X]
+
+    # Slow, should use static lists rather than dynamic, but oh well
+    dX = np.array([(X[1] - X[0])])
+    for i in range(2, len(X)):
+        dX = np.row_stack((dX, X[i] - X[i - 1]))
+
+    X = X[1:]  # Since the first value has no distance assigned to it
+
+    # 3. Rotate distances 90 degrees (x, y) = (-y, x)
+    v = np.column_stack((-dX[:, 1], dX[:, 0]))
+
+    # 4. Normalise each distance
+    n = np.sqrt(np.power(v[:, 0], 2) + np.power(v[:, 1], 2))
+
+    # 5. Distance = x1 dot n_hat
+    # Preprocess 0s, this will be at least 50% of the data.
+    indices = np.where(n == 0)
+    indices = list(indices[0])  # Type conversion before iterating speeds up
+    # To stop division by 0, we want to have r = 0 and theta = 0, these values will be removed LATER, but kept for now
+    n[indices] = 1
+    v[indices] = 0
+
+    n_hat = v / n[:, None]  # Works
+
+    # 6. Equivalent to a matrix dot product
+    r = np.sum(X[:, :] * n_hat, axis=1)
+    theta = np.arctan2(v[:, 1], v[:, 0]) * (180 / math.pi)
+    H = np.column_stack((r, theta))
+
+    return H
+
+
+def _write_clusters_space_to_json(predictions, cover='00', tp='49', algorithm='none', verbose=False):
+    _old_data = import_data(acceptable_tpG, cover=cover, tp=tp)
+
+    # Initiliase the frame structure. Massive speedups in write speeds
+    data = {'centroids': [[] for _ in _old_data['centroids']]}
+
+    # Check if the data has interpolated values, if it does, then you want to add extra space
+    if predictions > len(State2(_old_data)):
+        data = {'centroids': [[] for _ in predictions]}
+
+    # Pad the predictions so they are always 4 digit strings
+    def _pad_prediction(_pred):
+        pred_len = len(str(_pred))
+        if pred_len == 1:
+            return '000{}'.format(_pred)
+        if pred_len == 2:
+            return '00{}'.format(_pred)
+        if pred_len == 3:
+            return '0{}'.format(_pred)
+        return str(_pred)
+
+    predictions2 = [_pad_prediction(pred_) for pred_ in predictions]
+
+    j = 0
+    for i, frame in enumerate(_old_data['centroids']):
+        for sperm in frame:
+            data['centroids'][i].append({'bbox': sperm['bbox'],  # Keep the same BBOX (this can be changed later)
+                                         'center': sperm['center'],  # Center always same
+                                         'class': 1,  # Class always 1. We assume 100% precision
+                                         'interpolated': False,  # Currently we throw away our interpolated points
+                                         'id': predictions2[j]  # ID is equal to the cluster number
+                                         })
+            j += 1
+    data['extra_information'] = _old_data['extra_information']
+
+    # Determine our path from global path given. Save it in the same directory.
+    cover_ = "{}_{}".format(cover[0], cover[1])
+    path = pathG.format(tp, cover_)
+    print('Found file: {}'.format(path))
+
+    start = path[::-1].find('\\')
+
+    if algorithm != 'none':
+        path = path[:-start] + '{}_tracking.json'.format(algorithm).replace(' ', '_')
+    else:
+        path = path[:-start] + 'tracking.json'
+
+    if verbose:
+        print('Writing file: {}'.format(path))
+
+    with open(path, 'w') as f:
+        json.dump(data, f, ensure_ascii=False)
+
+    if verbose:
+        print('Finished writing file.')
+    return 0
 
 
 def polynomialNumber(BTC_list):
@@ -356,673 +452,15 @@ def export_to_excel(data_input, filename):
     return 0
 
 
-def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot_type='2d', heatmap=False,
-                  min_points_for_clustering=20, return_clusters=False, write_output=True, verbose=False):
-    valid_algorithms = ["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm", "richard-dbscan", 'mike-htdbscan',
-                        "richard-hdbscan", "richard-BIC-hdbscan", 'mike-hthdbscan', 'ground-truth']
-    algorithm_t = "dbscan"  # Default algorithm
-    if algorithm in valid_algorithms:
-        algorithm_t = algorithm
-
-    if data_State.frame_num == 0:
-        print('TP {} cover {} has no datapoints!'.format(data_State.tp, data_State.cover))
-        if plot_type == 'bar_graph':
-            return 0
-        sys.exit(1)
-
-    # Find all positions of center of sperm heads for data video
-    # Plots the graph by default.
-    # Returns the clusters
-    x_values = data_State.x.copy()
-    y_values = data_State.y.copy()
-    frame_values = data_State.z.copy()
-
-    X = [[x_values[i], y_values[i], frame_values[i]] for i in range(len(x_values))]
-    X = np.asarray(X)  # The data
-
-    clusters = []  # Initialisation
-    pred_y = []  # Initialisation
-    n_clusters = n_clusters  # Intialisation, should change to the number of labels
-    if data_State.frame_num < min_points_for_clustering:
-        # Too few data points, then treat them as they are all noise
-        if verbose:
-            print('TP {} cover {} has too few data points!'.format(data_State.tp, data_State.cover))
-        algorithm_t = 'none'
-        n_clusters = 1
-        if plot_type == 'bar_graph':
-            if verbose:
-                print('---------------------------------------------------')
-                print('U: []')
-                print('---------------------------------------------------')
-            return 0
-
-    elif algorithm_t.lower() == 'dbscan':
-        # Calculate the predictions using dbscan
-        # eps: max distance to be considered a cluster neighbour.
-        # min_samples: similar to KNN, minimum neighbours to make a cluster
-        model = DBSCAN(eps=22, min_samples=12, n_jobs=4)
-        model_trained = model.fit(X)
-        labels = model_trained.labels_
-        pred_y = model.fit_predict(X)
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-        if verbose:
-            print('# of clusters ', n_clusters)
-            print('# of Noise clusters', n_noise)
-            print('# TOTAL: ', len(pred_y))
-
-    elif algorithm_t.lower() == 'kmeans':
-        # Calculate the predictions using kmeans
-        model = KMeans(n_clusters=n_clusters, init='k-means++', max_iter=100, n_init=10, random_state=0)
-        pred_y = model.fit_predict(X)
-
-    elif algorithm_t.lower() == 'mike':
-        # Calculate the predictions using Mike distance tracking method
-        # Precalculate the euclidean distances of each sperm from each other sperm for every frame with frame diff
-        distances = calc_distances(data_State, 2, True, frame_diff=1)
-        distances_f = calc_distances(data_State, 2, True, frame_diff=-1)
-        # Plot a line between each sperm, using primitive tracking as the shortest distance sperm in the previous frame.
-        # Add each sperm coordinate across all the frames to a separate list
-
-        pred_y, n_clusters = track_sperms(data_State, distances, distances_f)
-        algorithm_t = 'closest frame'  # Change the name to something more appropriate
-
-    elif algorithm_t.lower() == 'hdbscan':
-        # code from: https://hdbscan.readthedocs.io/en/latest/basic_hdbscan.html
-        clusterer = hdbscan.HDBSCAN()
-        clusterer.fit(X)
-        labels = clusterer.labels_
-        pred_y = clusterer.fit_predict(X)
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-        if verbose:
-            print('# of clusters ', n_clusters)
-            print('# of Noise Clusters ', n_noise)
-
-    elif algorithm_t.lower() == 'gmm':
-        # code from: https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html#sklearn
-        # .mixture.GaussianMixture
-
-        # Use a DBSCAN estimate for the number of components
-        model = DBSCAN(eps=13, min_samples=5, n_jobs=2)
-        model_trained = model.fit(X)
-        labels = model_trained.labels_
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_clusters = math.ceil(n_clusters/2)
-
-        # GMM clusterer
-        clusterer = GaussianMixture(n_clusters, covariance_type='diag')
-        clusterer.fit(X)
-        pred_y = clusterer.fit_predict(X)
-
-    elif algorithm_t.lower() == 'mike-htdbscan':
-        # 1. Use Mike K-patch
-        # 2. Determine mean r, mean theta for every cluster
-        # 3. Use DBSCAN to group r, theta parameters
-        # 4. Relabel the Mike K-patch clusters
-
-        # 1. K-patch
-        clusters, _, _ = calc_clusters(data_State, algorithm='mike', plot=False, return_clusters=True,
-                                       write_output=False)
-
-        # 2. H-transform parameters for each cluster
-        r_all_, r2_all_ = [], []
-        t_all_, t2_all_ = [], []
-        pred_y = [i for i in range(len(clusters))]
-        for i, cluster in enumerate(clusters):
-            if len(cluster[1]) > 1:
-                XT = np.array(cluster[1])
-                XT, XY = XT[:, [0, 2]], XT[:, [1, 2]]
-
-                H_ = __hough_transform3(XT)
-                H2_ = __hough_transform3(XY)
-                r_all_.append(np.mean(H_[:, 0]))
-                t_all_.append(np.mean(H_[:, 1]))
-                r2_all_.append(np.mean(H2_[:, 0]))
-                t2_all_.append(np.mean(H2_[:, 1]))
-            else:
-                pred_y[i] = -2
-
-        pred_y = np.array(pred_y)
-        noise_indices = np.where(pred_y==-2)
-        noise_indices = list(noise_indices[0])
-        if verbose:
-            print('# TOTAL: ', len(pred_y))
-
-        H_ = np.column_stack((np.array(r_all_), np.array(t_all_)))
-        H2_ = np.column_stack((np.array(r2_all_), np.array(t2_all_)))
-
-        # 2.5 Plot the Graph comparing H-space to cartesian
-        if plot:
-            colors = [[random.uniform(0.05, 0.7), random.uniform(0.05, 0.7), random.uniform(0.05, 0.7)] for _ in range(len(r_all_))]
-
-            fig, (ax2, ax1) = plt.subplots(1, 2)
-            fig.set_size_inches(12, 5)  # Set the sizing
-            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
-                                                                                                  data_State.tp,
-                                                                                                  data_State.cover),
-                         fontsize=18)
-            for i, point in enumerate(H_):
-                ax2.scatter(point[0], point[1], label=i, color=colors[i])
-
-            for i, point in enumerate(H2_):
-                ax1.scatter(point[0], point[1], label=i, color=colors[i])
-
-            ax2.set_xlabel('R')
-            ax2.set_ylabel(r'$\theta$')
-            ax1.set_xlabel('R')
-            ax1.set_ylabel(r'$\theta$')
-
-            ax2.title.set_text(' (x, t) ')
-            ax1.title.set_text(' (y, t) ')
-
-            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=1, handletextpad=0.6,
-                               labelspacing=0.5, columnspacing=0.5)
-            fig.tight_layout()  # Rescale everything so subplots always fit
-            # plt.show()
-
-        # 3. DBSCAN the H-space points
-        X = np.column_stack((H_, H2_))
-        # Calculate the predictions using dbscan
-        # eps: max distance to be considered a cluster neighbour.
-        # min_samples: similar to KNN, minimum neighbours to make a cluster
-        model = DBSCAN(eps=50, min_samples=2, n_jobs=4)
-        model_trained = model.fit(X)
-        labels = model_trained.labels_
-        pred_y = model.fit_predict(X)
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0) + 1
-        n_noise = list(labels).count(-1)
-        if verbose:
-            print('# of clusters ', n_clusters)
-            print('# of Noise clusters ', n_noise)
-
-        # 4. Convert back to our original state space
-        pred_y = list(pred_y)
-        for index in noise_indices:
-            pred_y.insert(index, -2)
-
-        if verbose:
-            print('# TOTAL: ', len(pred_y))
-
-        for i in range(len(clusters)):
-            clusters[i][0] = pred_y[i]
-        n_clusters = len(pred_y)
-
-        # 4.2 -1 and -2 are all diff clusters
-        p = max(pred_y) + 1
-        for i, pred in enumerate(pred_y):
-            if pred == -1 or pred == -2:
-                clusters[i][0] = p
-                pred_y[i] = p
-                p += 1
-        if verbose:
-            print('Unique:', len(set(pred_y)))
-        n_clusters = len(set(pred_y))
-
-        clusters2 = [[i, []] for i in range(n_clusters)]
-
-        for i, pred in enumerate(pred_y):
-            clusters2[pred][1].extend(clusters[i][1])
-
-        clusters = clusters2
-        X = data_State.X
-
-        # Change the name
-        algorithm_t = 'closest frame / hough transform'
-
-    elif algorithm_t.lower() == 'mike-hthdbscan':
-        # 1. Use Mike K-patch
-        # 2. Determine mean r, mean theta for every cluster
-        # 3. Use DBSCAN to group r, theta parameters
-        # 4. Relabel the Mike K-patch clusters
-
-        # 1. K-patch
-        clusters, _, _ = calc_clusters(data_State, algorithm='mike', plot=False, return_clusters=True,
-                                       write_output=False)
-
-        # 2. H-transform parameters for each cluster
-        r_all_, r2_all_ = [], []
-        t_all_, t2_all_ = [], []
-        pred_y = [i for i in range(len(clusters))]
-        for i, cluster in enumerate(clusters):
-            if len(cluster[1]) > 1:
-                XT = np.array(cluster[1])
-                XT, XY = XT[:, [0, 2]], XT[:, [1, 2]]
-
-                H_ = __hough_transform3(XT)
-                H2_ = __hough_transform3(XY)
-                r_all_.append(np.mean(H_[:, 0]))
-                t_all_.append(np.mean(H_[:, 1]))
-                r2_all_.append(np.mean(H2_[:, 0]))
-                t2_all_.append(np.mean(H2_[:, 1]))
-            else:
-                pred_y[i] = -2
-
-        pred_y = np.array(pred_y)
-        noise_indices = np.where(pred_y==-2)
-        noise_indices = list(noise_indices[0])
-
-        if verbose:
-            print('# TOTAL: ', len(pred_y))
-
-        H_ = np.column_stack((np.array(r_all_), np.array(t_all_)))
-        H2_ = np.column_stack((np.array(r2_all_), np.array(t2_all_)))
-
-        # 2.5 Plot the Graph comparing H-space to cartesian
-        if plot:
-            colors = [[random.uniform(0.05, 0.7), random.uniform(0.05, 0.7), random.uniform(0.05, 0.7)] for _ in range(len(r_all_))]
-
-            fig, (ax2, ax1) = plt.subplots(1, 2)
-            fig.set_size_inches(12, 5)  # Set the sizing
-            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
-                                                                                                  data_State.tp,
-                                                                                                  data_State.cover),
-                         fontsize=18)
-            for i, point in enumerate(H_):
-                ax2.scatter(point[0], point[1], label=i, color=colors[i])
-
-            for i, point in enumerate(H2_):
-                ax1.scatter(point[0], point[1], label=i, color=colors[i])
-
-            ax2.set_xlabel('R')
-            ax2.set_ylabel(r'$\theta$')
-            ax1.set_xlabel('R')
-            ax1.set_ylabel(r'$\theta$')
-
-            ax2.title.set_text(' (x, t) ')
-            ax1.title.set_text(' (y, t) ')
-
-            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=1, handletextpad=0.6,
-                               labelspacing=0.5, columnspacing=0.5)
-            fig.tight_layout()  # Rescale everything so subplots always fit
-            # plt.show()
-
-        # 3. DBSCAN the H-space points
-        X = np.column_stack((H_, H2_))
-        # Calculate the predictions using dbscan
-        # eps: max distance to be considered a cluster neighbour.
-        # min_samples: similar to KNN, minimum neighbours to make a cluster
-        clusterer = hdbscan.HDBSCAN()
-        clusterer.fit(X)
-        labels = clusterer.labels_
-        pred_y = clusterer.fit_predict(X)
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0) + 1
-        n_noise = list(labels).count(-1)
-        if verbose:
-            print('# of clusters ', n_clusters)
-            print('# of Noise clusters ', n_noise)
-
-        # 4. Convert back to our original state space
-        pred_y = list(pred_y)
-        for index in noise_indices:
-            pred_y.insert(index, -2)
-
-        if verbose:
-            print('# TOTAL: ', len(pred_y))
-
-        for i in range(len(clusters)):
-            clusters[i][0] = pred_y[i]
-        n_clusters = len(pred_y)
-
-        # 4.2 -1 and -2 are all diff clusters
-        p = max(pred_y) + 1
-        for i, pred in enumerate(pred_y):
-            if pred == -1 or pred == -2:
-                clusters[i][0] = p
-                pred_y[i] = p
-                p += 1
-
-        if verbose:
-            print('Unique:', len(set(pred_y)))
-        n_clusters = len(set(pred_y))
-
-        clusters2 = [[i, []] for i in range(n_clusters)]
-
-        for i, pred in enumerate(pred_y):
-            clusters2[pred][1].extend(clusters[i][1])
-
-        clusters = clusters2
-        X = data_State.X
-
-    elif algorithm_t.lower() == 'richard-dbscan':
-        # Use polynomial regression to extrapolate missing points.
-
-        # First use initial DBSCAN
-        n_beginning = len(data_State)
-        dbscan = DBSCAN(eps=12, min_samples=10)
-        model = dbscan.fit(X)
-        labels = model.labels_
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-
-        lists_cluster = []
-        for x in range(n_clusters):
-            cluster_A = [[x_values[i], y_values[i], frame_values[i]] for i in range(len(labels)) if labels[i] == x - 1]
-            cluster_A = np.asarray(cluster_A)
-            lists_cluster.append(cluster_A)
-
-        # Append the extrapolated data
-        X = extrapolate_missing(lists_cluster, list(X).copy())
-        X = np.asarray(X)
-        if verbose:
-            print('Number of total points after extrapolation: ', len(X))
-
-        # Perform DBSCAN again for data with missing values extrapolated
-        dbscan = DBSCAN(eps=12, min_samples=10)
-        model = dbscan.fit(X)
-        labels = model.labels_
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-        if verbose:
-            print('# of clusters ', n_clusters)
-            print('# of Noise clusters', n_noise)
-
-        # Remove the surplus points
-        X = X[:n_beginning]
-        x_values = X[:, 0]
-        y_values = X[:, 1]
-        frame_values = X[:, 2]
-        labels = labels[:n_beginning]
-
-        pred_y = labels
-        n_clusters = len(set(pred_y))
-
-        # Change the name to be more appropriate for the title
-        algorithm_t = 'Linearly extrapolated 2-iter DBSCAN'
-
-    elif algorithm_t.lower() == 'richard-hdbscan':
-        # Use polynomial regression to extrapolate missing points.
-
-        # First use initial DBSCAN
-        n_beginning = len(data_State)
-        clusterer = hdbscan.HDBSCAN()
-        clusterer.fit(X)
-        labels = clusterer.labels_
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-
-        lists_cluster = []
-        for x in range(n_clusters):
-            cluster_A = [[x_values[i], y_values[i], frame_values[i]] for i in range(len(labels)) if labels[i] == x - 1]
-            cluster_A = np.asarray(cluster_A)
-            lists_cluster.append(cluster_A)
-
-        # Append the extrapolated data
-        X = extrapolate_missing(lists_cluster, list(X).copy())
-        X = np.asarray(X)
-        if verbose:
-            print('Number of total points after extrapolation: ', len(X))
-
-        # Perform DBSCAN again for data with missing values extrapolated
-        dbscan = DBSCAN(eps=12, min_samples=10)
-        model = dbscan.fit(X)
-        labels = model.labels_
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise = list(labels).count(-1)
-
-        if verbose:
-            print('# of clusters ', n_clusters)
-            print('# of Noise clusters', n_noise)
-
-        # Remove the surplus points
-        X = X[:n_beginning]
-        x_values = X[:, 0]
-        y_values = X[:, 1]
-        frame_values = X[:, 2]
-        labels = labels[:n_beginning]
-
-        pred_y = labels
-        n_clusters = len(set(pred_y))
-
-        # Change the name to be more appropriate for the title
-        algorithm_t = 'Linearly extrapolated 2-iter DBSCAN'
-
-    elif algorithm_t.lower() == 'richard-bic-hdbscan':
-        # Calculate the predictions using Mike distance tracking method
-        # Precalculate the euclidean distances of each sperm from each other sperm for every frame with frame diff
-        n_beginning = len(data_State)
-
-        clusterer = hdbscan.HDBSCAN()
-        clusterer.fit(X)
-        labels = clusterer.labels_
-        pred_y = clusterer.fit_predict(X)
-
-        # How many clusters?
-        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-
-        # Generate the ID and a random colours for each ID
-        # List comprehensions are over 100% more efficient
-        clusters = [[i, []] for i in range(n_clusters)]
-
-        # Append all of the clustering predictions to the data structure
-        for i in range(len(pred_y)):
-            clusters[pred_y[i]][1].append([x_values[i], y_values[i], frame_values[i]])
-
-        new_lists_cluster = clusters
-        count = 0
-        while count < 1:
-            count += 1
-            count2 = 0
-            token_sperms = []
-            for speram_number in range(1, len(new_lists_cluster)):
-                if len(new_lists_cluster[speram_number][1]) <= 300 and len(new_lists_cluster[speram_number][1]) >= 10:
-                    count2 += 1
-                    x_t, y_t, z_t = optimalPolynomial(speram_number, new_lists_cluster)
-                    for t in range(0, len(z_t)):
-                        token_sperms.append([x_t[t], y_t[t], z_t[t]])
-
-            n_points = len(data_State)
-
-            X = []
-            for i in range(0, n_points):
-                X.append([x_values[i], y_values[i], frame_values[i]])
-
-            # This are the extra sperms "token sperms"
-            for t in range(0, len(token_sperms)):
-                X.append([token_sperms[t][0], token_sperms[t][1], token_sperms[t][2]])
-
-            X = np.array(X)
-
-            X[:, 2] = [round(x) for x in X[:, 2]]
-
-            clusterer = hdbscan.HDBSCAN()
-            clusterer.fit(X)
-            labels = clusterer.labels_
-            pred_y = clusterer.fit_predict(X)
-
-            # How many clusters?
-            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-
-            # Remove the extra points
-            X = X[: n_beginning - 1, :]
-            pred_y = pred_y[:n_beginning - 1]
-
-            x_values = list(X[:, 0])
-            y_values = list(X[:, 1])
-            frame_values = list(X[:, 2])
-
-    elif algorithm_t.lower() == 'ground-truth':
-        X, clusters = hl.import_ground_truth(data_State.cover, data_State.tp, verbose=verbose)
-        x_values = list(X[:, 0])
-        y_values = list(X[:, 1])
-        frame_values = list(X[:, 2])
-        n_clusters = len(clusters)
-
-    elif algorithm_t.lower() == 'none':
-        # No clustering algorithm, treat it as one cluster, with colour black
-        n_clusters = len(data_State)
-        pred_y = [1 for _ in data_State.x]
-
-    if algorithm_t.lower() != 'closest frame / hough transform' \
-            and algorithm_t.lower() != 'mike-hthdbscan' \
-            and algorithm_t.lower() != 'ground-truth':
-        # Generate the ID and a random colours for each ID
-        # List comprehensions are over 100% more efficient
-        clusters = [[i, []] for i in range(n_clusters)]
-
-        # Append all of the clustering predictions to the data structure
-        for i in range(len(pred_y)):
-            clusters[pred_y[i]][1].append([x_values[i], y_values[i], frame_values[i]])
-
-    # (Generating DISTINCT n colours is unsolveable) Randomising uniformly, then reordering is a good compromise
-    # Making the graph coloured nicely AND matching the legend is NP hard. We will settle for just matching legend
-    colors = _generate_colors(n_clusters, 3)
-    colors = [_adjust_lightness(color, 0.5) for color in colors]  # Darken the GIST_rainbow colormap
-
-    if algorithm_t.lower() == 'none':
-        # Should only be black
-        colors = [[0, 0, 0] for _ in range(n_clusters)]
-
-    if algorithm_t.lower() == "linearly extrapolated 2-iter dbscan":
-        # We want the noise to appear black
-        colors[-1] = (0, 0, 0)
-
-        # We need to swap the first and last elements since the noise is currently the last cluster rather than 1st
-        colors[0], colors[-1] = colors[-1], colors[0]
-        clusters[0][1], clusters[-1][1] = clusters[-1][1], clusters[0][-1]
-
-    elif algorithm_t.lower() == 'ground-truth':
-        # The last cluster is noise, thus should be black
-        colors[-1] = 'black'
-
-    # List comprehensions are over 100% more efficient
-    clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_clusters) if len(clusters[i][1]) != 0]
-
-    if write_output:
-        # Write the output to a correctly named .json file.
-        _write_clusters_space_to_json(pred_y, cover=data_State.cover,
-                                      tp=data_State.tp, algorithm=algorithm_t, verbose=True)
-
-    if plot:
-        plot_clusters(clusters, data_State.frame_num, tp=data_State.tp, cover=data_State.cover, plot_type=plot_type)
-
-    if plot_type == 'bar_graph':
-        # Sneaky returning the U value where:
-        # U = Mean(|n_f - x|) where x is the number of points in each cluster
-        totals = [cluster.shape[0] for cluster in clusters_asarr]
-        _u = [abs(data_State.frame_num - n) for n in totals]
-        _u = np.array(_u)
-        _u = np.mean(_u) / data_State.frame_num
-        if verbose:
-            print('---------------------------------------------------')
-            print('Totals: ', totals)
-            print('U: ', _u)
-            print('---------------------------------------------------')
-
-        return _u
-
-    if return_clusters:
-        return clusters, pred_y, data_State
-
-    return pred_y
-
-
-def _write_clusters_space_to_json(predictions, cover='00', tp='49', algorithm='none', verbose=False):
-    _old_data = import_data(acceptable_tpG, cover=cover, tp=tp)
-
-    # Initiliase the frame structure. Massive speedups in write speeds
-    data = {'centroids': [[] for _ in _old_data['centroids']]}
-
-    # Pad the predictions so they are always 4 digit strings
-    def _pad_prediction(_pred):
-        pred_len = len(str(_pred))
-        if pred_len == 1:
-            return '000{}'.format(_pred)
-        if pred_len == 2:
-            return '00{}'.format(_pred)
-        if pred_len == 3:
-            return '0{}'.format(_pred)
-        return str(_pred)
-
-    predictions2 = [_pad_prediction(pred_) for pred_ in predictions]
-
-    j = 0
-    for i, frame in enumerate(_old_data['centroids']):
-        for sperm in frame:
-            data['centroids'][i].append({'bbox': sperm['bbox'],  # Keep the same BBOX (this can be changed later)
-                                         'center': sperm['center'],  # Center always same
-                                         'class': 1,  # Class always 1. We assume 100% precision
-                                         'interpolated': False,  # Currently we throw away our interpolated points
-                                         'id': predictions2[j]  # ID is equal to the cluster number
-                                         })
-            j += 1
-    data['extra_information'] = _old_data['extra_information']
-
-    # Determine our path from global path given. Save it in the same directory.
-    cover_ = "{}_{}".format(cover[0], cover[1])
-    path = pathG.format(tp, cover_)
-    print('Found file: {}'.format(path))
-
-    start = path[::-1].find('\\')
-
-    if algorithm != 'none':
-        path = path[:-start] + '{}_tracking.json'.format(algorithm).replace(' ', '_')
-    else:
-        path = path[:-start] + 'tracking.json'
-
-    if verbose:
-        print('Writing file: {}'.format(path))
-
-    with open(path, 'w') as f:
-        json.dump(data, f, ensure_ascii=False)
-
-    if verbose:
-        print('Finished writing file.')
-    return 0
-
-
-def __hough_transform3(data_input, origin=(0, 0)):
-    # Only use this ONLY for sequenced data
-
-    X = data_input
-    if origin != (0, 0):
-        X = [row - origin for row in X]
-
-    # Slow, should use static lists rather than dynamic, but oh well
-    dX = np.array([(X[1] - X[0])])
-    for i in range(2, len(X)):
-        dX = np.row_stack((dX, X[i] - X[i - 1]))
-
-    X = X[1:]  # Since the first value has no distance assigned to it
-
-    # 3. Rotate distances 90 degrees (x, y) = (-y, x)
-    v = np.column_stack((-dX[:, 1], dX[:, 0]))
-
-    # 4. Normalise each distance
-    n = np.sqrt(np.power(v[:, 0], 2) + np.power(v[:, 1], 2))
-
-    # 5. Distance = x1 dot n_hat
-    # Preprocess 0s, this will be at least 50% of the data.
-    indices = np.where(n == 0)
-    indices = list(indices[0])  # Type conversion before iterating speeds up
-    # To stop division by 0, we want to have r = 0 and theta = 0, these values will be removed LATER, but kept for now
-    n[indices] = 1
-    v[indices] = 0
-
-    n_hat = v / n[:, None]  # Works
-
-    # 6. Equivalent to a matrix dot product
-    r = np.sum(X[:, :] * n_hat, axis=1)
-    theta = np.arctan2(v[:, 1], v[:, 0]) * (180 / math.pi)
-    H = np.column_stack((r, theta))
-
-    return H
-
-
-# data_input, power, root=True. Calculate the distance for given cover data. frame_diff is the difference between frames
 def calc_distances(data_State, power=2, root=True, frame_diff=1):
+    """
+    # Calculate the distance for given cover data. frame_diff is the difference between frames
+    :param data_State: State2/State3 object
+    :param power: int
+    :param root: bool
+    :param frame_diff: int (1 is best)
+    :return: list
+    """
     # Calculate the distance between each and every sperm for every frame, done for distance between 'frame_diff' frames
     p = float(power)
 
@@ -1552,7 +990,7 @@ def csv_to_clusters(path):
     THIS ONLY WORKS FOR CSV ordered:
     x, y, frame, ID (prediction)
     :param path: str (.csv)
-    :return: clusters
+    :return: clusters, predictions
     """
     temp_path = Path(path)
     if not temp_path.is_file():
@@ -1712,6 +1150,580 @@ def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', pl
         plt.show()
 
 
+def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot_type='2d', heatmap=False,
+                  min_points_for_clustering=20, return_clusters=False, write_output=True, verbose=False):
+    valid_algorithms = ["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm", "richard-dbscan", 'mike-htdbscan',
+                        "richard-hdbscan", "richard-BIC-hdbscan", 'mike-hthdbscan', 'ground-truth']
+    algorithm_t = "dbscan"  # Default algorithm
+    if algorithm in valid_algorithms:
+        algorithm_t = algorithm
+
+    if data_State.frame_num == 0:
+        print('TP {} cover {} has no datapoints!'.format(data_State.tp, data_State.cover))
+        if plot_type == 'bar_graph':
+            return 0
+        sys.exit(1)
+
+    # Find all positions of center of sperm heads for data video
+    # Plots the graph by default.
+    # Returns the clusters
+    x_values = data_State.x.copy()
+    y_values = data_State.y.copy()
+    frame_values = data_State.z.copy()
+
+    X = [[x_values[i], y_values[i], frame_values[i]] for i in range(len(x_values))]
+    X = np.asarray(X)  # The data
+
+    clusters = []  # Initialisation
+    pred_y = []  # Initialisation
+    n_clusters = n_clusters  # Intialisation, should change to the number of labels
+    if data_State.frame_num < min_points_for_clustering:
+        # Too few data points, then treat them as they are all noise
+        if verbose:
+            print('TP {} cover {} has too few data points!'.format(data_State.tp, data_State.cover))
+        algorithm_t = 'none'
+        n_clusters = 1
+        if plot_type == 'bar_graph':
+            if verbose:
+                print('---------------------------------------------------')
+                print('U: []')
+                print('---------------------------------------------------')
+            return 0
+
+    elif algorithm_t.lower() == 'dbscan':
+        # Calculate the predictions using dbscan
+        # eps: max distance to be considered a cluster neighbour.
+        # min_samples: similar to KNN, minimum neighbours to make a cluster
+        model = DBSCAN(eps=22, min_samples=12, n_jobs=4)
+        model_trained = model.fit(X)
+        labels = model_trained.labels_
+        pred_y = model.fit_predict(X)
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+        if verbose:
+            print('# of clusters ', n_clusters)
+            print('# of Noise clusters', n_noise)
+            print('# TOTAL: ', len(pred_y))
+
+    elif algorithm_t.lower() == 'kmeans':
+        # Calculate the predictions using kmeans
+        model = KMeans(n_clusters=n_clusters, init='k-means++', max_iter=100, n_init=10, random_state=0)
+        pred_y = model.fit_predict(X)
+
+    elif algorithm_t.lower() == 'mike':
+        # Calculate the predictions using Mike distance tracking method
+        # Precalculate the euclidean distances of each sperm from each other sperm for every frame with frame diff
+        distances = calc_distances(data_State, 2, True, frame_diff=1)
+        distances_f = calc_distances(data_State, 2, True, frame_diff=-1)
+        # Plot a line between each sperm, using primitive tracking as the shortest distance sperm in the previous frame.
+        # Add each sperm coordinate across all the frames to a separate list
+
+        pred_y, n_clusters = track_sperms(data_State, distances, distances_f)
+        algorithm_t = 'closest frame'  # Change the name to something more appropriate
+
+    elif algorithm_t.lower() == 'hdbscan':
+        # code from: https://hdbscan.readthedocs.io/en/latest/basic_hdbscan.html
+        clusterer = hdbscan.HDBSCAN()
+        clusterer.fit(X)
+        labels = clusterer.labels_
+        pred_y = clusterer.fit_predict(X)
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+        if verbose:
+            print('# of clusters ', n_clusters)
+            print('# of Noise Clusters ', n_noise)
+
+    elif algorithm_t.lower() == 'gmm':
+        # code from: https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html#sklearn
+        # .mixture.GaussianMixture
+
+        # Use a DBSCAN estimate for the number of components
+        model = DBSCAN(eps=13, min_samples=5, n_jobs=2)
+        model_trained = model.fit(X)
+        labels = model_trained.labels_
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_clusters = math.ceil(n_clusters/2)
+
+        # GMM clusterer
+        clusterer = GaussianMixture(n_clusters, covariance_type='diag')
+        clusterer.fit(X)
+        pred_y = clusterer.fit_predict(X)
+
+    elif algorithm_t.lower() == 'mike-htdbscan':
+        # 1. Use Mike K-patch
+        # 2. Determine mean r, mean theta for every cluster
+        # 3. Use DBSCAN to group r, theta parameters
+        # 4. Relabel the Mike K-patch clusters
+
+        # 1. K-patch
+        clusters, _, _ = calc_clusters(data_State, algorithm='mike', plot=False, return_clusters=True,
+                                       write_output=False)
+
+        # 2. H-transform parameters for each cluster
+        r_all_, r2_all_ = [], []
+        t_all_, t2_all_ = [], []
+        pred_y = [i for i in range(len(clusters))]
+        for i, cluster in enumerate(clusters):
+            if len(cluster[1]) > 1:
+                XT = np.array(cluster[1])
+                XT, XY = XT[:, [0, 2]], XT[:, [1, 2]]
+
+                H_ = _hough_transform3(XT)
+                H2_ = _hough_transform3(XY)
+                r_all_.append(np.mean(H_[:, 0]))
+                t_all_.append(np.mean(H_[:, 1]))
+                r2_all_.append(np.mean(H2_[:, 0]))
+                t2_all_.append(np.mean(H2_[:, 1]))
+            else:
+                pred_y[i] = -2
+
+        pred_y = np.array(pred_y)
+        noise_indices = np.where(pred_y==-2)
+        noise_indices = list(noise_indices[0])
+        if verbose:
+            print('# TOTAL: ', len(pred_y))
+
+        H_ = np.column_stack((np.array(r_all_), np.array(t_all_)))
+        H2_ = np.column_stack((np.array(r2_all_), np.array(t2_all_)))
+
+        # 2.5 Plot the Graph comparing H-space to cartesian
+        if plot:
+            colors = [[random.uniform(0.05, 0.7), random.uniform(0.05, 0.7), random.uniform(0.05, 0.7)] for _ in range(len(r_all_))]
+
+            fig, (ax2, ax1) = plt.subplots(1, 2)
+            fig.set_size_inches(12, 5)  # Set the sizing
+            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
+                                                                                                  data_State.tp,
+                                                                                                  data_State.cover),
+                         fontsize=18)
+            for i, point in enumerate(H_):
+                ax2.scatter(point[0], point[1], label=i, color=colors[i])
+
+            for i, point in enumerate(H2_):
+                ax1.scatter(point[0], point[1], label=i, color=colors[i])
+
+            ax2.set_xlabel('R')
+            ax2.set_ylabel(r'$\theta$')
+            ax1.set_xlabel('R')
+            ax1.set_ylabel(r'$\theta$')
+
+            ax2.title.set_text(' (x, t) ')
+            ax1.title.set_text(' (y, t) ')
+
+            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=1, handletextpad=0.6,
+                               labelspacing=0.5, columnspacing=0.5)
+            fig.tight_layout()  # Rescale everything so subplots always fit
+            # plt.show()
+
+        # 3. DBSCAN the H-space points
+        X = np.column_stack((H_, H2_))
+        # Calculate the predictions using dbscan
+        # eps: max distance to be considered a cluster neighbour.
+        # min_samples: similar to KNN, minimum neighbours to make a cluster
+        model = DBSCAN(eps=50, min_samples=2, n_jobs=4)
+        model_trained = model.fit(X)
+        labels = model_trained.labels_
+        pred_y = model.fit_predict(X)
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0) + 1
+        n_noise = list(labels).count(-1)
+        if verbose:
+            print('# of clusters ', n_clusters)
+            print('# of Noise clusters ', n_noise)
+
+        # 4. Convert back to our original state space
+        pred_y = list(pred_y)
+        for index in noise_indices:
+            pred_y.insert(index, -2)
+
+        if verbose:
+            print('# TOTAL: ', len(pred_y))
+
+        for i in range(len(clusters)):
+            clusters[i][0] = pred_y[i]
+        n_clusters = len(pred_y)
+
+        # 4.2 -1 and -2 are all diff clusters
+        p = max(pred_y) + 1
+        for i, pred in enumerate(pred_y):
+            if pred == -1 or pred == -2:
+                clusters[i][0] = p
+                pred_y[i] = p
+                p += 1
+        if verbose:
+            print('Unique:', len(set(pred_y)))
+        n_clusters = len(set(pred_y))
+
+        clusters2 = [[i, []] for i in range(n_clusters)]
+
+        for i, pred in enumerate(pred_y):
+            clusters2[pred][1].extend(clusters[i][1])
+
+        clusters = clusters2
+        X = data_State.X
+
+        # Change the name
+        algorithm_t = 'closest frame / hough transform'
+
+    elif algorithm_t.lower() == 'mike-hthdbscan':
+        # 1. Use Mike K-patch
+        # 2. Determine mean r, mean theta for every cluster
+        # 3. Use DBSCAN to group r, theta parameters
+        # 4. Relabel the Mike K-patch clusters
+
+        # 1. K-patch
+        clusters, _, _ = calc_clusters(data_State, algorithm='mike', plot=False, return_clusters=True,
+                                       write_output=False)
+
+        # 2. H-transform parameters for each cluster
+        r_all_, r2_all_ = [], []
+        t_all_, t2_all_ = [], []
+        pred_y = [i for i in range(len(clusters))]
+        for i, cluster in enumerate(clusters):
+            if len(cluster[1]) > 1:
+                XT = np.array(cluster[1])
+                XT, XY = XT[:, [0, 2]], XT[:, [1, 2]]
+
+                H_ = _hough_transform3(XT)
+                H2_ = _hough_transform3(XY)
+                r_all_.append(np.mean(H_[:, 0]))
+                t_all_.append(np.mean(H_[:, 1]))
+                r2_all_.append(np.mean(H2_[:, 0]))
+                t2_all_.append(np.mean(H2_[:, 1]))
+            else:
+                pred_y[i] = -2
+
+        pred_y = np.array(pred_y)
+        noise_indices = np.where(pred_y==-2)
+        noise_indices = list(noise_indices[0])
+
+        if verbose:
+            print('# TOTAL: ', len(pred_y))
+
+        H_ = np.column_stack((np.array(r_all_), np.array(t_all_)))
+        H2_ = np.column_stack((np.array(r2_all_), np.array(t2_all_)))
+
+        # 2.5 Plot the Graph comparing H-space to cartesian
+        if plot:
+            colors = [[random.uniform(0.05, 0.7), random.uniform(0.05, 0.7), random.uniform(0.05, 0.7)] for _ in range(len(r_all_))]
+
+            fig, (ax2, ax1) = plt.subplots(1, 2)
+            fig.set_size_inches(12, 5)  # Set the sizing
+            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
+                                                                                                  data_State.tp,
+                                                                                                  data_State.cover),
+                         fontsize=18)
+            for i, point in enumerate(H_):
+                ax2.scatter(point[0], point[1], label=i, color=colors[i])
+
+            for i, point in enumerate(H2_):
+                ax1.scatter(point[0], point[1], label=i, color=colors[i])
+
+            ax2.set_xlabel('R')
+            ax2.set_ylabel(r'$\theta$')
+            ax1.set_xlabel('R')
+            ax1.set_ylabel(r'$\theta$')
+
+            ax2.title.set_text(' (x, t) ')
+            ax1.title.set_text(' (y, t) ')
+
+            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=1, handletextpad=0.6,
+                               labelspacing=0.5, columnspacing=0.5)
+            fig.tight_layout()  # Rescale everything so subplots always fit
+            # plt.show()
+
+        # 3. DBSCAN the H-space points
+        X = np.column_stack((H_, H2_))
+        # Calculate the predictions using dbscan
+        # eps: max distance to be considered a cluster neighbour.
+        # min_samples: similar to KNN, minimum neighbours to make a cluster
+        clusterer = hdbscan.HDBSCAN()
+        clusterer.fit(X)
+        labels = clusterer.labels_
+        pred_y = clusterer.fit_predict(X)
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0) + 1
+        n_noise = list(labels).count(-1)
+        if verbose:
+            print('# of clusters ', n_clusters)
+            print('# of Noise clusters ', n_noise)
+
+        # 4. Convert back to our original state space
+        pred_y = list(pred_y)
+        for index in noise_indices:
+            pred_y.insert(index, -2)
+
+        if verbose:
+            print('# TOTAL: ', len(pred_y))
+
+        for i in range(len(clusters)):
+            clusters[i][0] = pred_y[i]
+        n_clusters = len(pred_y)
+
+        # 4.2 -1 and -2 are all diff clusters
+        p = max(pred_y) + 1
+        for i, pred in enumerate(pred_y):
+            if pred == -1 or pred == -2:
+                clusters[i][0] = p
+                pred_y[i] = p
+                p += 1
+
+        if verbose:
+            print('Unique:', len(set(pred_y)))
+        n_clusters = len(set(pred_y))
+
+        clusters2 = [[i, []] for i in range(n_clusters)]
+
+        for i, pred in enumerate(pred_y):
+            clusters2[pred][1].extend(clusters[i][1])
+
+        clusters = clusters2
+        X = data_State.X
+
+    elif algorithm_t.lower() == 'richard-dbscan':
+        # Use polynomial regression to extrapolate missing points.
+
+        # First use initial DBSCAN
+        n_beginning = len(data_State)
+        dbscan = DBSCAN(eps=12, min_samples=10)
+        model = dbscan.fit(X)
+        labels = model.labels_
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+
+        lists_cluster = []
+        for x in range(n_clusters):
+            cluster_A = [[x_values[i], y_values[i], frame_values[i]] for i in range(len(labels)) if labels[i] == x - 1]
+            cluster_A = np.asarray(cluster_A)
+            lists_cluster.append(cluster_A)
+
+        # Append the extrapolated data
+        X = extrapolate_missing(lists_cluster, list(X).copy())
+        X = np.asarray(X)
+        if verbose:
+            print('Number of total points after extrapolation: ', len(X))
+
+        # Perform DBSCAN again for data with missing values extrapolated
+        dbscan = DBSCAN(eps=12, min_samples=10)
+        model = dbscan.fit(X)
+        labels = model.labels_
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+        if verbose:
+            print('# of clusters ', n_clusters)
+            print('# of Noise clusters', n_noise)
+
+        # Remove the surplus points
+        X = X[:n_beginning]
+        x_values = X[:, 0]
+        y_values = X[:, 1]
+        frame_values = X[:, 2]
+        labels = labels[:n_beginning]
+
+        pred_y = labels
+        n_clusters = len(set(pred_y))
+
+        # Change the name to be more appropriate for the title
+        algorithm_t = 'Linearly extrapolated 2-iter DBSCAN'
+
+    elif algorithm_t.lower() == 'richard-hdbscan':
+        # Use polynomial regression to extrapolate missing points.
+
+        # First use initial DBSCAN
+        n_beginning = len(data_State)
+        clusterer = hdbscan.HDBSCAN()
+        clusterer.fit(X)
+        labels = clusterer.labels_
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+
+        lists_cluster = []
+        for x in range(n_clusters):
+            cluster_A = [[x_values[i], y_values[i], frame_values[i]] for i in range(len(labels)) if labels[i] == x - 1]
+            cluster_A = np.asarray(cluster_A)
+            lists_cluster.append(cluster_A)
+
+        # Append the extrapolated data
+        X = extrapolate_missing(lists_cluster, list(X).copy())
+        X = np.asarray(X)
+        if verbose:
+            print('Number of total points after extrapolation: ', len(X))
+
+        # Perform DBSCAN again for data with missing values extrapolated
+        dbscan = DBSCAN(eps=12, min_samples=10)
+        model = dbscan.fit(X)
+        labels = model.labels_
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise = list(labels).count(-1)
+
+        if verbose:
+            print('# of clusters ', n_clusters)
+            print('# of Noise clusters', n_noise)
+
+        # Remove the surplus points
+        X = X[:n_beginning]
+        x_values = X[:, 0]
+        y_values = X[:, 1]
+        frame_values = X[:, 2]
+        labels = labels[:n_beginning]
+
+        pred_y = labels
+        n_clusters = len(set(pred_y))
+
+        # Change the name to be more appropriate for the title
+        algorithm_t = 'Linearly extrapolated 2-iter DBSCAN'
+
+    elif algorithm_t.lower() == 'richard-bic-hdbscan':
+        # Calculate the predictions using Mike distance tracking method
+        # Precalculate the euclidean distances of each sperm from each other sperm for every frame with frame diff
+        n_beginning = len(data_State)
+
+        clusterer = hdbscan.HDBSCAN()
+        clusterer.fit(X)
+        labels = clusterer.labels_
+        pred_y = clusterer.fit_predict(X)
+
+        # How many clusters?
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+
+        # Generate the ID and a random colours for each ID
+        # List comprehensions are over 100% more efficient
+        clusters = [[i, []] for i in range(n_clusters)]
+
+        # Append all of the clustering predictions to the data structure
+        for i in range(len(pred_y)):
+            clusters[pred_y[i]][1].append([x_values[i], y_values[i], frame_values[i]])
+
+        new_lists_cluster = clusters
+        count = 0
+        while count < 1:
+            count += 1
+            count2 = 0
+            token_sperms = []
+            for speram_number in range(1, len(new_lists_cluster)):
+                if len(new_lists_cluster[speram_number][1]) <= 300 and len(new_lists_cluster[speram_number][1]) >= 10:
+                    count2 += 1
+                    x_t, y_t, z_t = optimalPolynomial(speram_number, new_lists_cluster)
+                    for t in range(0, len(z_t)):
+                        token_sperms.append([x_t[t], y_t[t], z_t[t]])
+
+            n_points = len(data_State)
+
+            X = []
+            for i in range(0, n_points):
+                X.append([x_values[i], y_values[i], frame_values[i]])
+
+            # This are the extra sperms "token sperms"
+            for t in range(0, len(token_sperms)):
+                X.append([token_sperms[t][0], token_sperms[t][1], token_sperms[t][2]])
+
+            X = np.array(X)
+
+            X[:, 2] = [round(x) for x in X[:, 2]]
+
+            clusterer = hdbscan.HDBSCAN()
+            clusterer.fit(X)
+            labels = clusterer.labels_
+            pred_y = clusterer.fit_predict(X)
+
+            # How many clusters?
+            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+
+            # Remove the extra points
+            X = X[: n_beginning - 1, :]
+            pred_y = pred_y[:n_beginning - 1]
+
+            x_values = list(X[:, 0])
+            y_values = list(X[:, 1])
+            frame_values = list(X[:, 2])
+
+    elif algorithm_t.lower() == 'ground-truth':
+        X, clusters = hl.import_ground_truth(data_State.cover, data_State.tp, verbose=verbose)
+        x_values = list(X[:, 0])
+        y_values = list(X[:, 1])
+        frame_values = list(X[:, 2])
+        n_clusters = len(clusters)
+
+    elif algorithm_t.lower() == 'none':
+        # No clustering algorithm, treat it as one cluster, with colour black
+        n_clusters = len(data_State)
+        pred_y = [1 for _ in data_State.x]
+
+    if algorithm_t.lower() != 'closest frame / hough transform' \
+            and algorithm_t.lower() != 'mike-hthdbscan' \
+            and algorithm_t.lower() != 'ground-truth':
+        # Generate the ID and a random colours for each ID
+        # List comprehensions are over 100% more efficient
+        clusters = [[i, []] for i in range(n_clusters)]
+
+        # Append all of the clustering predictions to the data structure
+        for i in range(len(pred_y)):
+            clusters[pred_y[i]][1].append([x_values[i], y_values[i], frame_values[i]])
+
+    # (Generating DISTINCT n colours is unsolveable) Randomising uniformly, then reordering is a good compromise
+    # Making the graph coloured nicely AND matching the legend is NP hard. We will settle for just matching legend
+    colors = _generate_colors(n_clusters, 3)
+    colors = [_adjust_lightness(color, 0.5) for color in colors]  # Darken the GIST_rainbow colormap
+
+    if algorithm_t.lower() == 'none':
+        # Should only be black
+        colors = [[0, 0, 0] for _ in range(n_clusters)]
+
+    if algorithm_t.lower() == "linearly extrapolated 2-iter dbscan":
+        # We want the noise to appear black
+        colors[-1] = (0, 0, 0)
+
+        # We need to swap the first and last elements since the noise is currently the last cluster rather than 1st
+        colors[0], colors[-1] = colors[-1], colors[0]
+        clusters[0][1], clusters[-1][1] = clusters[-1][1], clusters[0][-1]
+
+    elif algorithm_t.lower() == 'ground-truth':
+        # The last cluster is noise, thus should be black
+        colors[-1] = 'black'
+
+    # List comprehensions are over 100% more efficient
+    clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_clusters) if len(clusters[i][1]) != 0]
+
+    if write_output:
+        # Write the output to a correctly named .json file.
+        _write_clusters_space_to_json(pred_y, cover=data_State.cover,
+                                      tp=data_State.tp, algorithm=algorithm_t, verbose=True)
+
+    if plot:
+        plot_clusters(clusters, data_State.frame_num, algorithm=algorithm_t, tp=data_State.tp,
+                      cover=data_State.cover, plot_type=plot_type)
+
+    if plot_type == 'bar_graph':
+        # Sneaky returning the U value where:
+        # U = Mean(|n_f - x|) where x is the number of points in each cluster
+        totals = [cluster.shape[0] for cluster in clusters_asarr]
+        _u = [abs(data_State.frame_num - n) for n in totals]
+        _u = np.array(_u)
+        _u = np.mean(_u) / data_State.frame_num
+        if verbose:
+            print('---------------------------------------------------')
+            print('Totals: ', totals)
+            print('U: ', _u)
+            print('---------------------------------------------------')
+
+        return _u
+
+    if return_clusters:
+        return clusters, pred_y, data_State
+
+    return pred_y
+
+
 # ~~~~~ Main ~~~~~
 # We could pull the data all from a github using pygithub and PAT keys/SSH keys
 # However, I am unsure if their data is copyrighted
@@ -1760,5 +1772,6 @@ if __name__ == '__main__':
 
     # evaluate_U_success(algorithm='ground-truth', tps=['49'], verbose=True)
     # csv_to_json('IDL_tracks_0_4.csv', '49', '04')
-    run_main(algorithm='kmeans', cover='04', tp='49', plot=True, write_output=False)
+    # run_main(algorithm='kmeans', cover='04', tp='49', plot=True, write_output=False)
+    csv_to_json('JPDAF', '49', '04')
     pass
