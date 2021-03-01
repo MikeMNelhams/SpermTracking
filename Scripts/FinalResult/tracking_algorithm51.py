@@ -999,7 +999,7 @@ def csv_to_clusters(path):
         print("File {} is not a supported .csv type".format(path))
     else:
         # The file exists
-        data = pd.read_csv(path)  # Read the csv into a DataFrame
+        data = pd.read_csv(path, header=None)  # Read the csv into a DataFrame
         data = data.to_numpy()  # Convert to a numpy array, throw away headers
 
         # Sort the array by frame number to return to the original array type?
@@ -1038,8 +1038,8 @@ def csv_to_clusters(path):
                 print('Error row i: {}, d: {}'.format(i, d))
                 sys.exit(1)
 
+        # Remove any empty lists
         clusters = [cluster for cluster in clusters if cluster[1]]
-
         return clusters, pred_y
 
 
@@ -1054,6 +1054,22 @@ def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', pl
     # Making the graph coloured nicely AND matching the legend is NP hard. We will settle for just matching legend
     colors = _generate_colors(n_clusters, 3)
     colors = [_adjust_lightness(color, 0.5) for color in colors]  # Darken the GIST_rainbow colormap
+
+    if algorithm_t.lower() == 'none':
+        # Should only be black
+        colors = [[0, 0, 0] for _ in range(n_clusters)]
+
+    if algorithm_t.lower() == "linearly extrapolated 2-iter dbscan":
+        # We want the noise to appear black
+        colors[-1] = (0, 0, 0)
+
+        # We need to swap the first and last elements since the noise is currently the last cluster rather than 1st
+        colors[0], colors[-1] = colors[-1], colors[0]
+        clusters[0][1], clusters[-1][1] = clusters[-1][1], clusters[0][-1]
+
+    elif algorithm_t.lower() == 'ground-truth':
+        # The last cluster is noise, thus should be black
+        colors[-1] = 'black'
 
     if heatmap:
         # https://www.google.com/url?sa=i&url=https%3A%2F%2Fmatplotlib.org%2F3.1.0%2Ftutorials%2Fcolors%2Fcolormaps
@@ -1100,9 +1116,9 @@ def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', pl
 
         for i, cluster in enumerate(clusters_asarr):
             color_map = colors[i]
-            ax1.scatter(cluster[:, 0], cluster[:, 1], label=i, color=color_map, s=5)
-            ax2.scatter(cluster[:, 0], cluster[:, 2], label=i, color=color_map, s=5)
-            ax3.scatter(cluster[:, 1], cluster[:, 2], label=i, color=color_map, s=5)
+            ax1.scatter(cluster[:, 0], cluster[:, 1], label=i, color=color_map, s=5)  # X vs Y     (C)
+            ax2.scatter(cluster[:, 1], cluster[:, 2], label=i, color=color_map, s=5)  # Y vs Frame (B)
+            ax3.scatter(cluster[:, 0], cluster[:, 2], label=i, color=color_map, s=5)  # X vs Frame (A)
 
         ax3.set_xlabel('X Axis', fontsize=17)
         ax3.set_ylabel('Frame Number', fontsize=16)
@@ -1168,6 +1184,25 @@ def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', pl
         ax.set_xlabel('Cluster Number')
         ax.set_ylabel('Number of clustered centroids')
         plt.show()
+
+
+def calc_u_value(clusters, frame_num, verbose=False):
+    # List comprehensions are over 100% more efficient
+    n_clusters = len(clusters)
+    clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_clusters) if len(clusters[i][1]) != 0]
+
+    # Sneaky returning the U value where:
+    # U = Mean(|n_f - x|) where x is the number of points in each cluster
+    totals = [cluster.shape[0] for cluster in clusters_asarr]
+    _u = [abs(frame_num - n) for n in totals]
+    _u = np.array(_u)
+    _u = np.mean(_u) / frame_num
+    if verbose:
+        print('---------------------------------------------------')
+        print('Totals: ', totals)
+        print('U: ', _u)
+        print('---------------------------------------------------')
+    return _u
 
 
 def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot_type='2d', heatmap=False,
@@ -1695,22 +1730,6 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
     colors = _generate_colors(n_clusters, 3)
     colors = [_adjust_lightness(color, 0.5) for color in colors]  # Darken the GIST_rainbow colormap
 
-    if algorithm_t.lower() == 'none':
-        # Should only be black
-        colors = [[0, 0, 0] for _ in range(n_clusters)]
-
-    if algorithm_t.lower() == "linearly extrapolated 2-iter dbscan":
-        # We want the noise to appear black
-        colors[-1] = (0, 0, 0)
-
-        # We need to swap the first and last elements since the noise is currently the last cluster rather than 1st
-        colors[0], colors[-1] = colors[-1], colors[0]
-        clusters[0][1], clusters[-1][1] = clusters[-1][1], clusters[0][-1]
-
-    elif algorithm_t.lower() == 'ground-truth':
-        # The last cluster is noise, thus should be black
-        colors[-1] = 'black'
-
     # List comprehensions are over 100% more efficient
     clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_clusters) if len(clusters[i][1]) != 0]
 
@@ -1726,16 +1745,7 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
     if plot_type == 'bar_graph':
         # Sneaky returning the U value where:
         # U = Mean(|n_f - x|) where x is the number of points in each cluster
-        totals = [cluster.shape[0] for cluster in clusters_asarr]
-        _u = [abs(data_State.frame_num - n) for n in totals]
-        _u = np.array(_u)
-        _u = np.mean(_u) / data_State.frame_num
-        if verbose:
-            print('---------------------------------------------------')
-            print('Totals: ', totals)
-            print('U: ', _u)
-            print('---------------------------------------------------')
-
+        _u = calc_u_value(clusters, data_State.frame_num, verbose=verbose)
         return _u
 
     if return_clusters:
@@ -1793,5 +1803,9 @@ if __name__ == '__main__':
     # evaluate_U_success(algorithm='ground-truth', tps=['49'], verbose=True)
     # csv_to_json('IDL_tracks_0_4.csv', '49', '04')
     # run_main(algorithm='kmeans', cover='04', tp='49', plot=True, write_output=False)
-    csv_to_json('labelledtracks.csv', '49', '04', algorithm="JPDAF")
+    # csv_to_json('labelledtracks.csv', '49', '04', algorithm="JPDAF")
+    clusters1, _ = csv_to_clusters('labelledtracks.csv')
+    data04 = import_data(acceptable_tpG, cover='04', tp='49')
+
+    plot_clusters(clusters1, State2(data04).frame_num, algorithm="JPDAF", cover='04', tp='49')
     pass
