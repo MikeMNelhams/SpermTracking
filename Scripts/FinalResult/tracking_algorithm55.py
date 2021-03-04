@@ -266,8 +266,8 @@ def _plot_ellipse(x, y, xr, yr, ax, color='black', linewidth=1.0, rotation=0, pr
     ax.plot(x+Ell_rot[0, :], y+Ell_rot[1, :], c=color, linewidth=linewidth)
 
 
-def _annotate(text, ax, xy=(0, 0), xytext=(50, 50), face_color='black', shrink=0.1, text_color='black'):
-    ax.annotate(text, xy=xy, xytext=xytext, c=text_color,
+def _annotate(text, ax, xy=(0, 0), xytext=(50, 50), face_color='black', shrink=0.1, text_color='black', text_size=16):
+    ax.annotate(text, xy=xy, xytext=xytext, c=text_color, fontsize=text_size,
                 arrowprops=dict(facecolor=face_color, shrink=shrink),
                 )
 
@@ -969,7 +969,7 @@ def calc_u_value(clusters, frame_num, verbose=False):
     clusters_asarr = [np.asarray(clusters[i][1]) for i in range(n_clusters) if len(clusters[i][1]) != 0]
 
     # Sneaky returning the U value where:
-    # U = Mean(|n_f - x|) where x is the number of points in each cluster
+    # U = Mean(|n_f - x|) / frame_num where x is the number of points in each cluster
     totals = [cluster.shape[0] for cluster in clusters_asarr]
     _u = [abs(frame_num - n) for n in totals]
     _u = np.array(_u)
@@ -1033,6 +1033,11 @@ def csv_to_clusters(path):
         X = data[:, [0, 1, 2]]
         n_clusters = len(set(pred_y))
 
+        # for i, line in enumerate(data[:, 3]):
+        #     print(line)
+        #     if i > 100:
+        #         sys.exit()
+
         # If the algorithm randomly skips IDs, let's use the max then remove the empty clusters
         missing_ids = False
         if n_clusters != int(max(pred_y)):
@@ -1058,12 +1063,13 @@ def csv_to_clusters(path):
 
         # Remove any empty lists
         clusters = [cluster for cluster in clusters if cluster[1]]
+
         return clusters, pred_y
 
 
 def plot_annotations(ax1, ax2, ax3, algorithm, tp, cover):
     # Here's an example of annotations, try run_main(algorithm='kmeans', tp='49', cover='04', write_output=False)
-    if algorithm == 'kmeans' and tp == '49' and cover == '04':
+    if algorithm == 'ground-truth' and tp == '49' and cover == '04':
         # Kmeans 49, 04, annotate discontinuities
         _plot_ellipse(200, 100, 45, 60, ax3, color='red', linewidth=2.0)
         _annotate('Discontuinities', ax3, xy=(220, 75), xytext=(276, -11), face_color='red',
@@ -1074,11 +1080,101 @@ def plot_annotations(ax1, ax2, ax3, algorithm, tp, cover):
         _annotate('Linear path', ax2, xy=(170, 100), xytext=(220, -18), face_color='red', shrink=1.15, text_color='red')
 
         # Kmeans 49, 04, annotate noise
-        _plot_ellipse(200, 100, 50, 60, ax1, color='red', linewidth=2.0, rotation=0)
+        _plot_ellipse(35, 225, 53, 110, ax1, color='red', linewidth=2.0, rotation=math.pi / 14)
+        _annotate('Noise', ax1, xy=(70, 295), xytext=(160, 400), face_color='red', shrink=1.15, text_color='red')
+
+    if algorithm == 'kmeans' and tp == '49' and cover == '04':
+        # annotate poor cluster
+        _plot_ellipse(460, 178, 130, 120, ax1, color='red', linewidth=2.0, rotation=0)
+        _annotate('Poorly clustered', ax1, xy=(447, 259), xytext=(223, 426), face_color='red', shrink=1.2,
+                  text_color='red',
+                  text_size=14)
+
+        # annotate intersection
+        _plot_ellipse(60, 194, 50, 50, ax3, color='red', linewidth=2.0, rotation=0)
+        _annotate('Noise unidentified', ax3, xy=(49, 222), xytext=(7, 350), face_color='red', shrink=1.2,
+                  text_color='red',
+                  text_size=14)
+
+    if algorithm == 'dbscan' and tp == '49' and cover == '04':
+        # annotate intersection
+        _plot_ellipse(300, 75, 50, 50, ax3, color='red', linewidth=2.0, rotation=0)
+        _annotate('Intersection', ax3, xy=(300, 75), xytext=(400, -12), face_color='red', shrink=0.1, text_color='red',
+                  text_size=14)
+
+        # annotate intersection
+        _plot_ellipse(180, 58, 30, 20, ax2, color='red', linewidth=2.0, rotation=0)
+        _annotate('Intersection', ax2, xy=(190, 48), xytext=(225, -12), face_color='red', shrink=0.1, text_color='red',
+                  text_size=14)
+
+        # annotate intersection
+        _plot_ellipse(300, 180, 45, 45, ax1, color='red', linewidth=2.0, rotation=0)
+        _annotate('Intersection', ax1, xy=(310, 170), xytext=(400, -12), face_color='red', shrink=0.1, text_color='red',
+                  text_size=14)
+
+    if algorithm == 'hdbscan' and tp == '49' and cover == '04':
+        # annotate intersection
+        _plot_ellipse(620, 175, 50, 50, ax3, color='red', linewidth=2.0, rotation=0)
+        _annotate('Correctly\n tracked', ax3, xy=(600, 145), xytext=(349, 65), face_color='red', shrink=1, text_color='red',
+                  text_size=14)
+
+        # annotate discontinuities
+        _plot_ellipse(280, 575, 100, 40, ax1, color='red', linewidth=2.0, rotation=math.pi/16)
+        _annotate('Split track', ax1, xy=(260, 555), xytext=(200, 380), face_color='red', shrink=1.5,
+                  text_color='red',
+                  text_size=14)
+
+    if algorithm == 'gmm' and tp == '49' and cover == '04':
+        # annotate intersection
+        _plot_ellipse(620, 175, 50, 50, ax3, color='red', linewidth=2.0, rotation=0)
+        _annotate('Split into\nthree\ntracks', ax3, xy=(600, 145), xytext=(380, 45), face_color='red', shrink=1, text_color='red',
+                  text_size=14)
+
+        # annotate intersection
+        _plot_ellipse(800, 450, 150, 150, ax1, color='red', linewidth=2.0, rotation=0)
+        _annotate('Poorly clustered', ax1, xy=(750, 450), xytext=(200, 380), face_color='red', shrink=1,
+                  text_color='red',
+                  text_size=14)
+
+    if algorithm == 'closest frame / hough transform' and tp == '49' and cover == '04':
+        # annotate intersection
+        _plot_ellipse(756, 150, 40, 175, ax3, color='red', linewidth=2.0, rotation=math.pi / 6)
+        _annotate('Now only\ntwo\ntracks', ax3, xy=(716, 183), xytext=(385, 45), face_color='red', shrink=1,
+                  text_color='red',
+                  text_size=14)
+
+        # annotate intersection
+        _plot_ellipse(394, 32, 65, 40, ax2, color='red', linewidth=2.0, rotation=0)
+        _annotate('Misclassified', ax2, xy=(417, 18), xytext=(468, 4), face_color='red', shrink=1.8,
+                  text_color='red',
+                  text_size=14)
+
+        # annotate intersection
+        _plot_ellipse(600, 575, 125, 30, ax1, color='red', linewidth=2.0, rotation=0)
+        _annotate('Still overly\nmany tracks', ax1, xy=(559, 541), xytext=(274, 392), face_color='red', shrink=1,
+                  text_color='red',
+                  text_size=14)
+
+    if algorithm == 'BIC-polynomial 2-HDBSCAN' and tp == '49' and cover == '04':
+        _plot_ellipse(300, 68, 50, 80, ax3, color='red', linewidth=2.0, rotation=math.pi / 6)
+        _annotate('Still\nincorrect', ax3, xy=(309, 64), xytext=(420, 100), face_color='red', shrink=1,
+                  text_color='red',
+                  text_size=14)
+
+        _plot_ellipse(596, 574, 150, 80, ax1, color='red', linewidth=2.0, rotation=0)
+        _annotate('Now all\ncorrect', ax1, xy=(558, 541), xytext=(310, 370), face_color='red', shrink=1,
+                  text_color='red',
+                  text_size=14)
+
+    # if algorithm == 'MPCA' and tp == '49' and cover == '04':
+    #     _plot_ellipse(300, 68, 50, 80, ax3, color='red', linewidth=2.0, rotation=math.pi / 6)
+    #     _annotate('Still\nincorrect', ax3, xy=(309, 64), xytext=(420, 100), face_color='red', shrink=1,
+    #               text_color='red',
+    #               text_size=14)
 
 
 def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', plot_type='2d', heatmap=False,
-                  legend=False):
+                  legend=False, annotations=True):
     n_clusters = len(clusters)
     algorithm_t = algorithm
 
@@ -1158,7 +1254,8 @@ def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', pl
             ax3.scatter(cluster[:, 0], cluster[:, 2], label=i, color=color_map, s=5)  # X vs Frame (A)
 
         # Annotate the graph
-        plot_annotations(ax1, ax2, ax3, algorithm_t, tp, cover)
+        if annotations:
+            plot_annotations(ax1, ax2, ax3, algorithm_t, tp, cover)
 
         # Label Axes
         ax3.set_xlabel('X Axis', fontsize=17)
@@ -1298,9 +1395,12 @@ def plot_clusters(clusters, frame_num, algorithm='None', tp='49', cover='00', pl
         ax.set_ylabel('Number of clustered centroids')
         plt.show()
 
+    return 0
+
 
 def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot_type='2d', heatmap=False,
-                  min_points_for_clustering=20, return_clusters=False, write_output=True, verbose=False, legend=False):
+                  min_points_for_clustering=20, return_clusters=False, write_output=True, verbose=False, legend=False,
+                  annotations=True):
     algorithm_t = "dbscan"  # Default algorithm
     if algorithm in valid_algorithmsG:
         algorithm_t = algorithm
@@ -1437,35 +1537,6 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
         H_ = np.column_stack((np.array(r_all_), np.array(t_all_)))
         H2_ = np.column_stack((np.array(r2_all_), np.array(t2_all_)))
 
-        # 2.5 Plot the Graph comparing H-space to cartesian
-        if plot:
-            colors = [[random.uniform(0.05, 0.7), random.uniform(0.05, 0.7), random.uniform(0.05, 0.7)] for _ in range(len(r_all_))]
-
-            fig, (ax2, ax1) = plt.subplots(1, 2)
-            fig.set_size_inches(12, 5)  # Set the sizing
-            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
-                                                                                                  data_State.tp,
-                                                                                                  data_State.cover),
-                         fontsize=18)
-            for i, point in enumerate(H_):
-                ax2.scatter(point[0], point[1], label=i, color=colors[i])
-
-            for i, point in enumerate(H2_):
-                ax1.scatter(point[0], point[1], label=i, color=colors[i])
-
-            ax2.set_xlabel('R')
-            ax2.set_ylabel(r'$\theta$')
-            ax1.set_xlabel('R')
-            ax1.set_ylabel(r'$\theta$')
-
-            ax2.title.set_text(' (x, t) ')
-            ax1.title.set_text(' (y, t) ')
-
-            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=1, handletextpad=0.6,
-                               labelspacing=0.5, columnspacing=0.5)
-            fig.tight_layout()  # Rescale everything so subplots always fit
-            # plt.show()
-
         # 3. DBSCAN the H-space points
         X = np.column_stack((H_, H2_))
         # Calculate the predictions using dbscan
@@ -1554,35 +1625,6 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
 
         H_ = np.column_stack((np.array(r_all_), np.array(t_all_)))
         H2_ = np.column_stack((np.array(r2_all_), np.array(t2_all_)))
-
-        # 2.5 Plot the Graph comparing H-space to cartesian
-        if plot:
-            colors = [[random.uniform(0.05, 0.7), random.uniform(0.05, 0.7), random.uniform(0.05, 0.7)] for _ in range(len(r_all_))]
-
-            fig, (ax2, ax1) = plt.subplots(1, 2)
-            fig.set_size_inches(12, 5)  # Set the sizing
-            fig.suptitle('{} clustering applied to the sperm centroids for tp {} cover {}'.format(algorithm_t.upper(),
-                                                                                                  data_State.tp,
-                                                                                                  data_State.cover),
-                         fontsize=18)
-            for i, point in enumerate(H_):
-                ax2.scatter(point[0], point[1], label=i, color=colors[i])
-
-            for i, point in enumerate(H2_):
-                ax1.scatter(point[0], point[1], label=i, color=colors[i])
-
-            ax2.set_xlabel('R')
-            ax2.set_ylabel(r'$\theta$')
-            ax1.set_xlabel('R')
-            ax1.set_ylabel(r'$\theta$')
-
-            ax2.title.set_text(' (x, t) ')
-            ax1.title.set_text(' (y, t) ')
-
-            ax1.legend(ncol=4, loc='center left', bbox_to_anchor=(1.05, 0.45), markerscale=1, handletextpad=0.6,
-                               labelspacing=0.5, columnspacing=0.5)
-            fig.tight_layout()  # Rescale everything so subplots always fit
-            # plt.show()
 
         # 3. DBSCAN the H-space points
         X = np.column_stack((H_, H2_))
@@ -1872,6 +1914,13 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
         _, pred_y = csv_to_clusters(r'For Mike IDL\tp{}\IDL_tracks{}.csv'.format(data_State.tp, _cover), )
         n_clusters = len(set(pred_y))
 
+    elif algorithm_t.lower() == 'matlab-idl04':
+        _cover = '{}_{}'.format(data_State.cover[0], data_State.cover[1])
+        _, pred_y = csv_to_clusters(r'0_4\IDL_tracks0_4.csv'.format(data_State.tp, _cover), )
+        n_clusters = len(set(pred_y))
+
+        algorithm_t = 'MPCA'
+
     elif algorithm_t.lower() == 'none':
         # No clustering algorithm, treat it as one cluster, with colour black
         n_clusters = len(data_State)
@@ -1898,11 +1947,12 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
 
     if plot:
         plot_clusters(clusters, data_State.frame_num, algorithm=algorithm_t, tp=data_State.tp,
-                      cover=data_State.cover, plot_type=plot_type, heatmap=heatmap, legend=legend)
+                      cover=data_State.cover, plot_type=plot_type, heatmap=heatmap, legend=legend,
+                      annotations=annotations)
 
     if plot_type == 'bar_graph':
         # Sneaky returning the U value where:
-        # U = Mean(|n_f - x|) where x is the number of points in each cluster
+        # U = Mean(|n_f - x|) / frame_num where x is the number of points in each cluster
         _u = calc_u_value(clusters, data_State.frame_num, verbose=verbose)
         return _u
 
@@ -1918,7 +1968,7 @@ def calc_clusters(data_State, algorithm="kmeans", n_clusters=10, plot=True, plot
 # In which case we would need a license to upload their data to github. So this will do.
 # len(data["centroids"][i]) is the number of sperms in a frame. This is subject to change each frame
 def run_main(tp='49', cover='00', plot=False, algorithm='dbscan', verbose=False, plot_type='2d', heatmap=False,
-             write_output=True, legend=False):
+             write_output=True, legend=False, annotations=True):
 
     data = import_data(acceptable_tpG, cover=cover, tp=tp, verbose=verbose)
 
@@ -1929,7 +1979,7 @@ def run_main(tp='49', cover='00', plot=False, algorithm='dbscan', verbose=False,
 
     # Cluster and plot the clusters for their 2D projections
     calc_clusters(data, plot=plot, algorithm=algorithm, plot_type=plot_type, heatmap=heatmap,
-                  write_output=write_output, verbose=verbose, legend=legend)
+                  write_output=write_output, verbose=verbose, legend=legend, annotations=annotations)
 
 
 # Globals
@@ -1939,8 +1989,8 @@ acceptable_coversG = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09'
 acceptable_draw_typesG = ['bar', 'step', 'stepfilled']  # 2021/02 These are the only useful ones we want
 # Valid algorithms supported by calc_clusters
 valid_algorithmsG = ["kmeans", "dbscan", "mike", "none", "hdbscan", "gmm", "richard-dbscan", 'mike-htdbscan',
-                     "richard-hdbscan", "richard-bic-hdbscan", 'mike-hthdbscan', 'ground-truth', 'IDL',
-                     'richard-bic-dbscan']
+                     "richard-hdbscan", "richard-bic-hdbscan", 'mike-hthdbscan', 'ground-truth', 'idl',
+                     'richard-bic-dbscan', "matlab-idl04"]
 
 # Generic Path. Obviously change your path to the directory with the data if this code returns errors.
 pathG = r"mojo_sperm_tracking_data_bristol\tp{}\cover{}_YOLO_NO_TRACKING_output\centroids_with_meta.json"
@@ -1968,5 +2018,8 @@ if __name__ == '__main__':
     # clusters1, _ = csv_to_clusters('labelledtracks.csv')
     # data04 = import_data(acceptable_tpG, cover='03', tp='49')
     # plot_clusters(clusters1, State2(data04).frame_num, algorithm="JPDAF", cover='03', tp='49')
-    run_main(algorithm='kmeans', tp='49', cover='04', plot=True, write_output=False, legend=True)
+    run_main(algorithm='matlab-idl04', tp='49', cover='04', plot=True, write_output=False, legend=True,
+             annotations=True)
+    # run_main(algorithm='idl', tp='49', cover='04', plot=True, write_output=False, legend=False,
+    #          annotations=True)
     pass
