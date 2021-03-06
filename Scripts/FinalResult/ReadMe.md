@@ -50,6 +50,12 @@ Bool.
 Plot = True will plot the graph, Plot = False will not plot the graph 
 
 Default `False`
+### write_output 
+Bool. 
+
+write_output = True will write the data to the corresponding tp/cover file given that the Mojo tracking data bristol is saved locally within the same directory as ```tracking_algorithm55.py```
+
+Default `True`
 ### Verbose
 Bool. 
 
