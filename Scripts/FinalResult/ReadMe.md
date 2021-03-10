@@ -74,6 +74,13 @@ heatmap = True will change the colour scheme to using a heatmap where colour rep
 
 heatmap = False will use default colour scheme where every cluster is a different randomised cluster from palette rgb(0.05 to 0.7, 0.05 to 0.7, 0.05 to 0.7) .
 
+### Legend
+Bool. 
+
+legend = True will include a nicely coloured and formatted legend on the right side. 
+
+legend = False will rescale the graph and not include any legend.
+
 ## Examples:
 ### 1
 ```python 
