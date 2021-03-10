@@ -1,5 +1,5 @@
 # Sperm Tracking in collaboration with Mojo
-Mojo are a sperm analysis and treatment organisation: https://www.mojofertility.co/. 
+Mojo are a sperm analysis and treatment organisation.
 
 This is a repository for all resources for University of Bristol project with Mojo for sperm analysis. 
 Partial training data is stored in the `tracking_data` directory. 
