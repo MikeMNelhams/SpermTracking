@@ -1,6 +1,6 @@
 Latest version
 ============
-The latest version for the tracking algorithm is ```tracking_algorithm55.py```.
+The latest version for the tracking algorithm is ```tracking_algorithm56.py```.
 Running ```python run_main(algorithm, cover='cover', tp='tp')``` will write a .json file of the exact format of video detections for a given TP and cover.
 
 Test files
