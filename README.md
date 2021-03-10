@@ -4,4 +4,4 @@ This is a repository for all resources for University of Bristol project on sper
 The `scripts` contains all of our up-to-date research for our own proposed algorithms for tracking sperm from basic AI-annotated videos of sperm. 
 `Final Result` is the main python file, with its own ReadMe file for documentation. 
 
-For an extended review of the algorithms used, there is a `
+For an extended review of the algorithms used, there is a `SpermTrackingPaper.pdf` academic paper attached with this repository.
