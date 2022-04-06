@@ -5,3 +5,7 @@ The `scripts` contains all of our up-to-date research for our own proposed algor
 `Final Result` is the main python file, with its own ReadMe file for documentation. 
 
 For an extended review of the algorithms used, there is a `SpermTrackingPaper.pdf` academic paper preview attached with this repository.
+
+***
+
+![PaperPreviewSample](/SpermTrackingPaper_Page_11.png)
